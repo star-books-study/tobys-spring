@@ -10,3 +10,48 @@
 > DAO : DB를 사용해 데이터를 조회하거나 조작하는 기능을 전담하도록 만든 오브젝트
 
 ### 1.1.1 User
+사용자 정보를 저장할 때는 자바빈 규약을 따르는 오브젝트를 이용하면 편하다.
+```java
+package springbook.user.domain;
+
+public class User {
+  String id;
+  String name;
+  String password;
+
+  public String getId() {
+    return id;
+  }
+  public setId() {
+    this.id = id;
+  }
+  public String getName() {
+    return name;
+  }
+  public String getPassword() {
+    return password;
+  }
+  public void setPassword(String password) {
+    this.password = password;
+  }
+}
+
+```
+
+이제 User 오브젝트가 담긴 정보가 실제로 보관될 DB의 테이블을 하나 만들어보자. 테이블 이름은 USER로 User 클래스의 프로퍼티와 동일하게 구성한다.
+- 테이블 필드 내역
+  | 필드명 | 타입 | 설정 |
+  |------|-----|-----|
+  | id | VARCHAR(10) | Primary Key |
+  | Name | VARCHAR(20) | Not Null |
+  | Password | VARCHAR(20) | Not Null |
+- SQL문
+  ```sql
+  create table users (
+    id varchar(10) primary key,
+    name varchar(20) not null,
+    password varchar(10) not null
+  )
+  ```
+> **자바빈**
+  
