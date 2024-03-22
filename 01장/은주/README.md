@@ -125,7 +125,13 @@ public class UserDao {
       abstractMethod();
     }
 
-    protected 
+    protected void hookMethod() { } // 선택적으로 오버라이딩 가능한 훅메소드
+    public abstract void abstractMethod(); // 서브클래스에서 반드시 구현해야 하는 추상 메소드
+  }
+
+  public class Sub1 extends Super {
+    protected void hookMethod() {...}
+    public void abstractMethod() {...}
   }
   ```
 - 팩토리 메소드 패턴
