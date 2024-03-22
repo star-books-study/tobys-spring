@@ -147,4 +147,15 @@ public static void main(String[] args) thorws ClassNotFoundException, SQLExcepti
   System.out.println(user2.getId() + " 조회 성공");
 }
 ```
+main() 클래스를 실행하면 다음과 같은 테스트 성공 메시지를 얻을 수 있다.
+```
+whiteship 등록 성공
+백기선
+married
+whiteship 조회 성공
+```
 
+그런데 UserDao 클래스 코드에는 사실 여러가지 문제가 있다. 정말 한심한 코드다.
+
+## 1.2 DAO의 분리
+### 1.2.1 관심사의 분리
