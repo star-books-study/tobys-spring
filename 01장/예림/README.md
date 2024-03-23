@@ -159,3 +159,43 @@ whiteship 조회 성공
 
 ## 1.2 DAO의 분리
 ### 1.2.1 관심사의 분리
+- 객체지향의 세계에서는 모든 것이 변한다(사용자의 비즈니스 프로세스와 그에 따른 요구사항, 기술, 운영환경 등).
+- 그래서 개발자가 객체를 설계할 때 가장 염두에 둬야할 사항은 바로 미래의 변화를 어떻게 대비할 것인가다.
+- 객체지향 설계와 프로그래밍이 절차적 프로그래밍 패러다임에 비해 초기에 좀 더 번거로운 작업을 요구하는 이유는 변화에 효과적으로 대처할 수 있다는 기술적인 특징 때문이다.
+- **변경에 필요한 작업을 최소화하고, 그 변경이 다른 곳에 문제를 일으키지 않게 하기 위해서는 `분리와 확장`을 고려한 설계가 필요하다.**
+
+- 먼저 분리에 대해서 생각해보자.
+- 모든 변경과 발전은 한 번에 한 가지 관심사항에 집중해서 일어난다. 문제는, 그에 따른 작업은 한 곳에 집중되지 않는 경우가 많다는 점이다.
+- 프로그래밍의 기초 개념 중 하나인 `관심사의 분리`를 객체지향에 적용해보면 다음과 같다.
+  - 관심이 같은 것끼리는 하나의 객체 안으로 또는 친한 객체로 모이게 한다.
+  - 관심이 다른 것은 가능한 따로 떨어져서 서로 영향을 주지 않도록 분리한다.
+### 1.2.2 커넥션 만들기의 추출
+UserDao에 구현된 add() 메소드에서 적어도 세 가지의 관심사항을 발견할 수 있다.
+#### UserDao의 관심사항
+1. DB와 연결을 위한 커넥션 가져오기
+2. 사용자 등록을 위해 DB에 보낼 SQL 문장을 담을 Statement를 만들고 실행하기
+3. 작업이 끝나면 사용한 리소스인 Statement와 Connection 오브젝트를 닫아주기
+
+#### 중복 코드의 메서드 추출
+커넥션을 가져오는 중복된 DB 연결 코드를 getConnection()이라는 이름의 독립적인 메서드로 만든다.
+```java
+public void add(User user) throws ClassNotFoundException, SQLException {
+  Connection c = getConnection();
+  ...
+}
+
+public User get(String id) throws ClassNotFoundException, SQLException {
+  Connection = getConnection();
+  ...
+}
+
+private Connection getConnection() throws ClassNotFoundException, SQLException {
+  Class.forName("com.mysql.jdbc.Driver");
+  Connection c = DriverManager.getConnection(
+    "jdbc:mysql://localhost/springbook", "spring", "book");
+  return c;
+}
+```
+- 관심의 종류에 따라 코드를 구분해놓았기 때문에 한 가지 관심에 대한 변경이 일어날 경우 그 관심이 집중되는 부분의 코드만 수정하면 된다.
+
+#### 변경사항에 대한 검증 : 리팩토링과 테스트
