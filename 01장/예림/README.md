@@ -486,7 +486,7 @@ public class UserDao {
   - UserDao와 ConnectionMaker 구현 클래스의 오브젝트를 만드는 역할
   - 그렇게 만들어진 두 개의 오브젝트가 연결돼서 사용할 수 있도록 관계를 맺어주는 역할
 #### 팩토리
-- 객체의 생성 방법을 결정하고 그렇게 만들어진 오브젝트를 오브젝트를 돌려주는 클래스를 만들어보겠다. ㅌ
+- 객체의 생성 방법을 결정하고 그렇게 만들어진 오브젝트를 오브젝트를 돌려주는 클래스를 만들어보겠다.
 - 이런 일을 하는 오브젝트를 `팩토리(factory)`라고 부른다.
 ```java
 // 1-14. UserDao의 생성 책임을 맡은 팩토리 클래스
@@ -508,3 +508,64 @@ public class UserDaoTest {
     ...
   }
 }
+```
+
+#### 설계도로서의 팩토리
+- UserDao와 ConnetionMaker가 실질적인 로직을 담당하는 컴포넌트라면, DaoFactory는 컴포넌트의 구조와 관계를 정의한 설계도와 같은 역할을 한다.
+- 이런 작업이 애플리케이션 전체에 걸쳐서 일어난다면 컴포넌트의 의존관계에 대한 설계도와 같은 역할을 하게될 것이다.
+  - 그림 첨부
+- 이제 N사와 D사에 UserDao를 공급할 때, DaoFactory도 같이 제공하되, ConnetionMaker의 구현 클래스를 변경할 수 있도록 소스코드 형태로 제공한다. 
+- 팩토리를 통해 애플리케이션의 컴포넌트 역할을 하는 오브젝트와 애플리케이션의 구조를 결정하는 오브젝트를 분리할 수 있다.
+
+### 1.4.2 오브젝트 팩토리의 이용
+- DaoFactory에 UserDao가 아닌 다른 DAO의 생성 기능을 넣게 되면 ConnectionMaker 구현 클래스의 오브젝트를 선정하고 생성하는 코드가 메서드마다 반복된다.
+```java
+// 1-16 DAO 생성 메서드 추가로 인해 발생하는 중복
+public class DaoFactory {
+  public UserDao userDao() {
+    return new UserDao(new DConnectionMaker());
+  }
+
+  public AccountDao accountDao() {
+    return new AccountDao(new DConnectionMaker());
+  }
+
+  public MessageDao messageDao() {
+    return new MessageDao(new DConnectionMaker());
+  }
+}
+```
+
+- ConnectionMaker의 구현 클래스를 결정하고 오브젝트를 만드는 코드를 별도의 메서드 뽑아내자.
+반복된다.
+```java
+// 1-17. 생성 오브젝트 코드 수정
+public class DaoFactory {
+  public UserDao userDao() {
+    return new UserDao(new ConnectionMaker());
+  }
+
+  public AccountDao accountDao() {
+    return new AccountDao(new ConnectionMaker());
+  }
+
+  public MessageDao messageDao() {
+    return new MessageDao(new ConnectionMaker());
+  }
+  
+  public ConnectionMaker connectionMaker() {
+    // 분리해서 중복을 제거한 ConnectionMaker 타입 오브젝트 생성 코드
+    return new DConnectionMaker();
+  }
+}
+```
+
+### 제어권 이전을 통한 제어관계 역전
+- 제어의 역전이란, 간단히 프로그램의 제어 구조가 뒤바뀌는 것
+- 제어의 역전에서는 오브젝트가 자신이 사용할 오브젝트를 스스로 선택하지도 생성하지도 않는다. 또 자신이 어떻게 만들어지고 어디서 사용되는지를 알 수 없다.
+- 모든 제어 권한을 자신이 아닌 다른 대상에게 위임하기 때문이다.
+- main()과 같은 엔트리 포인트를 제외하면 모든 오브젝트는 이렇게 위임받은 제어권한을 갖는 특별한 오브젝트에 의해 결정되고 만들어진다.
+- 서블릿이나 JSP, EJB처럼 컨테이너 안에서 동작하는 구조는 간단한 방식이긴 하지만 제어의 역전 개념이 적용되어 있다.
+- 템플릿 메서드 패턴에서도, 추상 메서드를 상속한 서브 클래스는 자신의 메서드가 언제 어떻게 사용될지는 모른다. 
+  - 즉, 제어권을 상위 템플릿 메서드에 넘기고 자신은 필요할 때 호출되어 사용하게 하도록 한다는 제어의 역전의 개념을 발견할 수 있다.
+- 프레임워크도 
