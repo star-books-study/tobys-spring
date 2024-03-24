@@ -420,7 +420,8 @@ public class UserDao {
 - 오브젝트 사이의 관계는 런타임시에 한쪽이 다른 오브젝트의 레퍼런스를 갖고 있는 방식으로 만들어진다.
   - 이는 클래스 사이의 관계를 설정해주는 건 아니다. 클래스 사이의 관계가 만들어진다는 것은 한 클래스가 인터페이스 없이 다른 클래스를 직접 사용한다는 뜻이다.
   - 예를 들면, 다음 코드는 DConnectionMaker의 오브젝트 레퍼런스를 UserDao의 connectionMaker 변수에 넣어서 사용하게 함으로써, 두 개의 오브젝트가 '사용'이라는 관계를 맺게 해준다.
-  ```connectionMaker = new DConnectionMaker();
+  ```
+  connectionMaker = new DConnectionMaker();
   ```
 - 오브젝트 사이의 관계가 만들어지려면 일단 오브젝트가 있어야 하직접 생성자를 호출해서 직접 오브젝트를 만드는 방법도 있지만 외부에서 준 것을 가져오는 방법도 있다.
 -   외부에서 만든 오브젝트를 전달받으려면 메서드 파라미터나 생성자 파라미터를 이용하면 된다.
@@ -512,8 +513,9 @@ public class UserDaoTest {
 
 #### 설계도로서의 팩토리
 - UserDao와 ConnetionMaker가 실질적인 로직을 담당하는 컴포넌트라면, DaoFactory는 컴포넌트의 구조와 관계를 정의한 설계도와 같은 역할을 한다.
-- 이런 작업이 애플리케이션 전체에 걸쳐서 일어난다면 컴포넌트의 의존관계에 대한 설계도와 같은 역할을 하게될 것이다.
-  - 그림 첨부
+- 이런 작업이
+ 애플리케이션 전체에 걸쳐서 일어난다면 컴포넌트의 의존관계에 대한 설계도와 같은 역할을 하게될 것이다.
+ <img width="554" alt="스크린샷 2024-03-24 오후 11 38 47" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/5cf03ae7-4ee7-44be-8396-41f03f3b743e">
 - 이제 N사와 D사에 UserDao를 공급할 때, DaoFactory도 같이 제공하되, ConnetionMaker의 구현 클래스를 변경할 수 있도록 소스코드 형태로 제공한다. 
 - 팩토리를 통해 애플리케이션의 컴포넌트 역할을 하는 오브젝트와 애플리케이션의 구조를 결정하는 오브젝트를 분리할 수 있다.
 
@@ -583,6 +585,70 @@ public class DaoFactory {
   - 스프링 컨테이너가 생성과 관계 설정, 사용 등을 제어해주는 제어의 역전이 적용된 오브젝트를 가리킨다.
 - 스프링애서는 빈의 설정과 관계 설정 같은 제어를 담당하는 IoC 오브젝트를 빈 팩토리(bean factory)라고 부른다.
 - 보통 빈 팩토라보다는 이를 확장한 애플리케이션 컨텍스트(application context)를 더 많이 사용한다.
-  - IoC 방식을 따라 만들어진 일종의 빈 팩토리
+  - IoC 방식을 따라 만들어진 일종의 빈 팩토리다.
   - 별도의 정보를 참고해서 빈(오브젝트)의 생성, 관계 설정 등의 제어 작업을 총괄한다.
--  
+  > 빈 팩토리와 애플리케이션 컨텍스트는 동일하다고 생각하면 된다. 빈 팩토리라고 말할 때는 빈을 생성하고 관계를 설정하는 IoC의 기본 기능에 초점을 맞춘 것이고, 애플리케이션 컨텍스트라고 말할 때에는 애플리케이션 전반에 걸쳐 모든 구성요소의 제어 작업을 담당하는 IoC 엔진이라는 의미가 좀 더 부각된다고 보면 된다.
+- 기존 DaoFactory 코드에는 설정 정보, 예를 들어 어떤 클래스의 오브젝트를 생성하고 어디에서 사용하도록 연결해줄 것인가에 관한 정보가 평범한 자바 코드로 만들어져있다.
+- 애플리케이션 컨텍스트는 직접 이런 정보를 담고 있진 않다. 대신 별도의 설정정보를 담고 있는 무엇인가를 가져와 이를 활용하는 범용적인 IoC 엔진 같은 것이라고 볼 수 있다.
+- 앞서 말한 설계도라는 게 바로 이런 애플리케이션 컨텍스트와 그 설정 정보를 말한다고 보면 된다.
+- 그 자체로는 애플리케이션 로직을 담당하지는 않지만 IoC 방식을 이용해 애플리케이션 컴포넌트를 생성하고, 사용할 관계를 맺어주는 등의 책임을 담당하는 것이다.
+
+### DaoFactory를 사용하는 애플리케이션 컨텍스트
+- DaoFactory를 스프링의 빈 팩토리가 사용할 수 있는 본격적인 설정 정보로 만들어보자.
+```java
+// 1-18. 스프링 빈 팩토리가 사용할 설정 정보를 담은 DaoFactory 클래스
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+...
+@Configuration // 애플리케이션 컨텍스트 또는 빈 팩토리가 사용할 설정정보라는 표시
+public class DaoFactory {
+  @Bean // 오브젝트 생성을 담당하는 IoC용 메서드라는 표시
+  public UserDao userDao() {
+    return new UserDao(connectionMaker());
+  }
+
+  @Bean
+  public ConnectionMaker connectionMaker() {
+    return new DConnectionMaker();
+  }
+}
+```
+- 이제 DaoFactory를 설정 정보로 사용하는 애플리케이션 컨텍스트를 만들어보자.
+- 애플리케이션 컨텍스트는 `ApplicationContext` 타입의 오브젝트다.
+- A`pplicationContext`를 구현한 클래스는 여러 가지가 있다.
+  -  DaoFactory처럼 @Configuration이 붙은 자바코드를 설정 정보로 사용하려면 `AnnotationConfigApplicationContext`를 이용하면 된다.
+```java
+public class UserDaoTest {
+  public static void main(String[] args) throws ClassNotFoundException, SQLException {
+  ApplicationContext context =
+      new AnnotationConfigApplicationContext(Daofactory.class);
+  UserDao dao = context.getBean("userDao", UserDao.class);
+}
+```
+- getBean() 메서드는 ApplicationContext가 관리하는 오브젝트를 요청하는 메서드다.
+
+- 스프링의 기능을 사용했으니 필요한 라이브러리를 추가해줘야 한다.
+- 스프링 배포판을 다운로드하거나 lib 폴더에서 필요한 파일을 가져다 프로젝트에 추가하고 클래스패스에 포함시켜줘야 한다.
+### 1.5.2 애플리케이션 컨텍스트의 동작방식
+- 기존의 오브젝트 팩토리에 대응되는 것이 스프링의 애플리케이션 컨텍스트다. 스프링에서는 이것을 IoC 컨테이너라고 하기도 하고, 스프링 컨테이너 혹은 빈 팩토리 라고 부르기도 한다.
+- DaoFactory가 UserDao를 비롯한 DAO 오브젝트를 생성하고 DB 생성 오브젝트와 관계를 맺어주는 제한적인 역할을 하는 데 반해, 애플리케이션 컨텍스트는 애플리케이션에서 IoC를 적용해서 관리할 모든 오브젝트에 대한 생성과 관계 설정을 담당한다.
+<img width="595" alt="스크린샷 2024-03-24 오후 11 53 44" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/6f898944-83ac-4d41-a599-494b17033957">
+
+- DaoFactory를 오브젝트 팩토리로 직접 사용했을 때와 비교해서 애플리케이션 컨텍스트를 사용했을 때 얻을 수 있는 장점은 다음과 같다.
+#### 클라이언트는 구체적인 팩토리 클래스를 알 필요가 없다.
+#### 애플리케이션 컨텍스트는 종합 IoC 서비스를 제공해준다.
+#### 애플리케이션 컨텍스트는 빈을 검색하는 다양한 방법을 제공한다.
+### 1.5.3 스프링 IoC의 용어 정리
+- 빈
+  - 스프링이 IoC 방식으로 관리하는 오브젝트
+- 빈 팩토리
+  - 스프링의 IoC를 담당하는 핵심 컨테이너
+- 애플리케이션 컨텍스트
+  - 빈 팩토리를 확장한 IoC 컨테이너
+- 설정 정보 / 설정 메타 정보
+  - 애플리케이션 컨텍스트 또는 빈 팩토리가 IoC를 적용하기 위해 사용하는 메타 정보
+- 컨테이너 또는 IoC 컨테이너
+  - IoC 방식으로 빈을 관리한다는 의미에서 애플리케이션이나 빈 팩토리를 컨테이너 또는 IoC 컨테이너라고도 한다.
+- 스프링 프레임워크
+  - 모든 IoC 컨테이너, 애플리케이션 컨텍스트를 포함해서 스프링이 제공하는 모든 기능을 통틀어 말할 때 주로 사용
+
