@@ -295,3 +295,216 @@ public class DUserDao extends UserDao {
   - 확장된 기능인 DB 커넥션을 생성하는 코드를 다른 DAO 클래스에 적용할 수 없다. 만약 UserDao 외의 DAO 클래스들이 계속 만들어진다면 상속을 통해 만들어진 getConnection() 구현 코드가 매 DAO 클래스마다 중복돼서 심각한 문제가 발생할 것이다.
 
 ## 1.3 DAO의 확장
+- 추상 클래스를 만들고 이를 상속한 서브 클래스에서 변화가 필요한 부분을 바꿔서 쓸 수 있게 만든 이유는 이렇게 변화의 성격이 다른 것을 분리해서, 서로 영향을 주지 않은 채로 각각 필요한 시점에 독립적으로 변경할 수 있게 하기 위해서다.
+- 그러나 여러가지 단점이 많은, 상속이라는 방법을 사용했다는 사실이 불편하게 느껴진다.
+### 1.3.1 클래스의 분리
+- 이번에는 아예 상속관계도 아닌 완전히 독립적인 클래스로 만들어보겠다.
+- DB 커넥션과 관련된 부분을 서브클래스가 아니라, 아예 별도의 클래스에 담는다. 그리고 이렇게 만든 클래스를 UserDao가 이용하게 하면 된다.
+  <img width="587" alt="스크린샷 2024-03-24 오전 11 37 14" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/aabb5f20-1a47-476c-8466-e6a8971aa57f">
+```java
+// 1-6. 독립된 SimpleConnectioinMaker를 사용하게 만든 UserDao
+public class UserDao {
+  private SimpleConnectionMaker simpleConnectionMaker;
+
+  public UserDao() {
+    // 상태를 관리하는 것도 아니니 한 번만 만들어 인스턴스 변수에 저장해두고 메서드에서 사용하게 한다.
+    simpleConnectionMaker = new SimpleConnectionMaker();
+  }
+
+  public void add(User user) throws ClassNotFoundException, SQLException {
+    Connection c = simpleConnectionMaker.makeNewConnection();
+    ...
+  }
+
+  public User get(String id) throws ClassNotFoundException, SQLException {
+    Connection c = simpleConnectionMaker.makeNewConnection();
+    ...
+  }
+}
+```
+DB 커넥션 생성 기능을 독립시킨 SimpleConnectionMaker는 리스트 1-7과 같이 만든다.
+```java
+// 1-7. 독립시킨 DB 연결 기능인 SimpleConnectionMaker
+package springbook.user.dao;
+...
+public class SimpleConnectionMaker {
+  public Connection makeNewConnection() throws ClassNotFoundException, SQLException {
+    Class.forName("com.mysql.jdbc.Driver");
+    Connection c = DriverManager.getConnection(
+      "jdbc:mysql://localhost/springbook", "spring", "book");
+    return c;
+  }
+}
+```
+- 이번에는 다른 문제가 발생했다. N 사와 D 사에 UserDao 클래스만 공급하고 상속을 통해 DB 커넥션 기능을 확장해서 사용하게 했던 게 다시 불가능해졌다.
+  - `UserDao`의 코드가 `SimpleConnectionMaker`라는 특정 클래스에 종속되어 있기 때문에 상속을 사용했을 때처럼 UserDao 코드의 수정 없이 DB 커넥션 생성 기능을 변경할 방법이 없다.
+- 다른 방식으로 DB 커넥션을 제공하는 클래스를 사용하기 위해서는 UserDao 소스코드의 다음 줄을 직접 수정해야 한다.
+  ```java
+  simpleConnectionMaker = new SimpleConnectionMaker();
+  ```
+- 이렇게 클래스를 분리한 경우에도 상속을 이용했을 때와 마찬가지로 자유로운 확장이 가능하게 하려면 두 가지 문제를 해결해야 한다.
+  1. SimpleConnectionMaker의 메서드 문제
+     만약 D 사에서 만든 DB 커넥션 제공 클래스는 openConnection()이라는 메서드 이름을 사용했다면 UserDao에 있는 add(), get() 메서드의 커넥션을 가져오는 코드를 다음과 같이 일일히 변경해야 한다.
+     ```java
+     Connection c = simpleConnectionMaker.openConnection();
+     ```
+ 2. DB 커넥션을 제공하는 클래스가 어떤 것인지 UserDao가 구체적으로 알고 있어야 한다
+    UserDao에서 SimpleConnectionMaker라는 클래스 타입의 인스턴스 변수까지 정의해놓고 있으니, N 사에서 다른 클래스를 구현하면 어쩔 수 없이 UserDao 자체를 다시 수정해야 한다.
+
+- 이런 문제의 근본적인 원인은 UserDao가 바뀔 수 있는 정보, 즉 DB 커넥션을 가져오는 클래스에 대해 너무 많이 알고 있기 때문이다.
+
+### 1.3.2 인터페이스의 도입
+- 이런 문제를 해결할 가장 좋은 해결책은 두 개의 클래스가 서로 긴밀하게 연결되어 있지 않도록 중간에 추상적인 느슨한 연결고리를 만들어주는 것이다.
+- 인터페이스를 도입하면 UserDao는 자신이 사용할 클래스가 어떤 것인지 몰라도 된다. 단지 인터페이스를 통해 원하는 기능을 사용하면 된다.
+  <img width="552" alt="스크린샷 2024-03-24 오전 11 59 50" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/74273027-5137-486a-b1f6-61cac910bf92">
+
+```java
+// 1-8. ConnectionMaker 인터페이스
+package springbook.user.dao;
+...
+public interface ConnectionMaker {
+  public Connection makeConnection() throws ClassNotFoundException, SQLException;
+}
+```
+- 고객에게 납품을 할 떄는 UserDao 클래스와 함께 ConnectionMaker 인터페이스도 전달한다.
+- 그리고 D 사의 개발자라면 다음과 같이 ConnectionMaker를 구현한 클래스를 만들고, 자신들의 DB 연결 기술을 이용해 DB 커넥션을 가져오도록 메서드를 작성해주면 된다.
+```java
+// 1-9. ConnectionMaker 구현 클래스
+package springbook.user.dao;
+...
+public class DConnectionMaker implements ConnectionMaker {
+  ...
+  public Connection makeConnection() throws ClassNotFoundException, SQLException {
+    // D 사의 독자적인 방법으로 Connection을 생성하는 코드
+  }
+}
+```
+- 리스트 1-10은 특정 클래스 대신 인터페이스를 사용해서 DB 커넥션을 가져와 사용하도록 수정한 UserDao 코드다.
+```java
+// 1-10. ConnectionMaker 인터페이스를 사용하도록 개선한 UserDao
+public class UserDao {
+
+  // 인터페이스를 통해 오브젝트에 접근하므로 구체적인 클래스 정보를 알 필요가 없다.
+  private ConnectionMaker connectionMaker;
+
+  public UserDao() {
+    // 앗! 그런데 여기에는 클래스 이름이 나오네!
+    connectionMaker = new DConnectionMaker();
+  }
+
+  public void add(User user) throws ClassNotFoundException, SQLException {
+    // 인터페이스에 정의된 메서드를 사용하므로 클래스가 바뀐다고 해도 메서드 이름이 변경될 걱정은 없다.
+    Connection c = connectionMaker.makeConnection();
+    ...
+  }
+
+  public User get(String id) throws ClassNotFoundException, SQLException {
+    Connection c = connectionMaker.makeConnection();
+    ...
+  }
+}
+```
+- DB 커넥션을 제공하는 클래스에 대한 구체적인 정보는 모두 제거가 가능했지만, 초기에 한 번 어떤 클래스의 오브젝트를 사용할지 결정하는 생성자의 코드는 제거되지 않고 남아있다.
+
+### 1.3.3 관계설정 책임의 분리
+- 인터페이스를 이용한 분리에도 불구하고 여전히 UserDao 변경 없이는 DB 커넥션 기능의 확장이 자유롭지 못하다.
+- 그 이유는 UserDao 안에 분리되지 않은, **또 다른 관심사항이 존재하고 있기 때문이다.**
+- `new DConnectionMaker()`라는 코드는 그 자체로 충분히 독립적인 관심사를 담고 있다.
+  - UserDao가 어떤 ConnectionMaker 구현 클래스의 오브젝트를 이용하게 할지를 결정하는 것이다.
+  - UserDao와 UserDao가 사용할 ConnectionMaker의 특정 구현 클래스 사이의 관계를 설정해주는 것에 관한 관심이다.
+
+- 두 개의 오브젝트가 있고 한 오브젝트가 다른 오브젝트의 기능을 사용한다면, 사용되는 오브젝트를 서비스, 사용하는 오브젝트를 클라이언트라고 부를 수 있다. (UserDao - 서비스 / UserDao를 사용하는 오브젝트 - 클라이언트)
+- 바로 이 UserDao의 클라이언트 오브젝트가 제3의 관심사항인 UserDao와 ConnectionMaker 구현 클래스의 관계를 결정해주는 기능을 분리해서 두기에 적절한 곳이다.
+
+- 먼저 UserDao가 어떤 ConnectionMaker의 구현 클래스를 사용할지 결정하도록 만들어보자. 즉 UserDao 오브젝트와 특정 클래스로부터 만들어진 ConnectionMaker 오브젝트 사이에 관계를 설정해주는 것이다.
+- 오브젝트 사이의 관계는 런타임시에 한쪽이 다른 오브젝트의 레퍼런스를 갖고 있는 방식으로 만들어진다.
+  - 이는 클래스 사이의 관계를 설정해주는 건 아니다. 클래스 사이의 관계가 만들어진다는 것은 한 클래스가 인터페이스 없이 다른 클래스를 직접 사용한다는 뜻이다.
+  - 예를 들면, 다음 코드는 DConnectionMaker의 오브젝트 레퍼런스를 UserDao의 connectionMaker 변수에 넣어서 사용하게 함으로써, 두 개의 오브젝트가 '사용'이라는 관계를 맺게 해준다.
+  ```connectionMaker = new DConnectionMaker();
+  ```
+- 오브젝트 사이의 관계가 만들어지려면 일단 오브젝트가 있어야 하직접 생성자를 호출해서 직접 오브젝트를 만드는 방법도 있지만 외부에서 준 것을 가져오는 방법도 있다.
+-   외부에서 만든 오브젝트를 전달받으려면 메서드 파라미터나 생성자 파라미터를 이용하면 된다.
+- UserDao의 모든 코드는 ConnectionMaker 인터페이스 외에는 어떤 클래스와도 관계를 가져서는 안되게 해야 한다.
+- UserDao 오브젝트가 DConnectionManager 오브젝트르 사용하게 하려면 두 클래스의 오브젝트 사이에 런타임 사용관계, 링크, 또는 의존관계라고 불리는 관계를 맺어주면 된다. 아래 그림은 런타임 시점의 오브젝트 간 관계를 나타내는 오브젝트 다이어그램이다. 모델링 싱[는 없었던, 그래서 코드에는 보이지 않던 관계가 오브젝트로 만들어진 후에 생성되는 것이다.
+  <img width="415" alt="스크린샷 2024-03-24 오후 12 40 40" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/d76f06a2-d5e5-4715-bc91-adb05685f468">
+
+- UserDao의 클라이언트의 책임은 아래와 같은 구조의 클래스들을 이용해 위와 같이 런타임 오브젝트 관계를 갖는 구조로 만들어주는 것이다.
+  <img width="552" alt="스크린샷 2024-03-24 오전 11 59 50" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/74273027-5137-486a-b1f6-61cac910bf92">
+- 책임을 떠넘겨보자.
+  - 현재는 UserDao()의 main() 메서드가 UserDao의 클라이언트라고 볼 수 있다. 아예 UserDaoTest라는 이름의 클래스를 만들어 main() 메서드를 UserDaoTest로 옮겨보자.
+  - 그리고 리스트 1-11과 같이 생성자를 수정해주면 UserDao에는 DConnectionMaker가 사라진다.
+    ```java
+    // 1-11. 수정한 생성자
+    public UserDao(ConnectionMaker connectionMaker) {
+      this.connectionMaker = connectionMaker;
+    }
+    ```
+    - UserDaoTest는 UserDao와 ConnectionMaker 구현 클래스와의 런타임 오브젝트 관계를 설정하는 책임을 담당한다.
+    ```java
+    public class UserDaoTest {
+      public static void main(String[] args) throws ClassNotFoundExceptoin, SQLException {
+      ConnectionMaker connectionMaker = new DConnectionMaker();
+
+      UserDao dao = new UserDao(connectionMaker);
+      ...
+      }
+    }
+- 인터페이스를 도입하는 방법은 다른 DAO 클래스에서도 ConnectionMaker의 구현 클래스들은 그대로 적용할 수 있기 때문에 상속에 비해 훨씬 더 유연한다.
+- 아래 그림은 UserDao가 사용할 ConnectionMaker 클래스를 선정하는 책임을 UserDaoTest가 담당하고 있는 구조를 보여준다.
+  <img width="541" alt="스크린샷 2024-03-24 오후 12 58 45" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/e6fe221f-a7d9-4081-a5f4-7aa2bc518e28">
+
+### 1.3.4 원칙과 패턴
+지금까지 초난감 DAO 코드를 개선해온 결과를 객체지향 기술의 여러가지 이론을 통해 설명하려고 한다.
+#### 개방 폐쇄 원칙
+깔끔한 설계를 위해 적용 가능한 객체지향 설계 원칙 중 하나다.
+> '클래스의 모듈은 확장에는 열려 있어야 하고 변경에는 닫혀 있어야 한다'
+- UserDao는 DB 연결 방법이라는 기능을 확장하는 데는 열려 있다. UserDao에 전혀 영향을 주지 않고도 얼마든지 기능 확장 가능하다.
+- UserDao 자신의 핵심 기능을 구현한 코드는 그에 변화에 받지 않고 유지할 수 있으므로 변경에는 닫혀 있다.
+
+#### 높은 응집도와 낮은 결합도
+개방 폐쇄 원칙은 높은 응집도와 낮은 결합도(high coherence and low coupling)라는 소프트웨어 개발의 고전적인 원리로도 설명이 가능하다.
+- 높은 응집도
+  - 응집도가 높다는 것은 변화가 일어날 때 해당 모듈에서 변하는 부분이 크다는 것으로 설명할 수 있다.
+  - 즉, 변경이 일어날 때 모듈의 많은 부분이 함께 바뀐다면 응집도가 높다고 말할 수 있다.
+- 낮은 결합도
+  - 높은 응집도보다 더 민감한 원칙
+  - 낮은 결합도, 즉 느슨한 연결은 관계를 유지하는 데 꼭 필요한 최소한의 방법만 간접적인 형태로 제공하고, 나머지는 서로 독립적이고 알 필요도 없게 만들어주는 것이다.
+  - 결합도가 낮아지면 변화에 대응하는 속도도 높아지고, 구성이 깔끔해진다. 또한 확장하기에도 매우 편리하다.
+  - 여기서 결합도란 '하나의 오브젝트가 변경이 일어날 때에 관계를 맺고 있는 다른 오브젝트에게 변화를 요구하는 정도'라고 설명할 수 있다.
+
+#### 전략 패턴
+- 개선한 UserDaoTest-UserDao-ConnectionMaker 구조를 디자인 패턴의 시각으로 보면 전략 패턴(Strategy Pattern)에 해당한다고 볼 수 있다.
+- 자신의 기능 맥락(context)에서, 필요에 따라 변경이 필요한 알고리즘을 인터페이스를 통해 통째로 외부로 분리시키고, 이를 구현한 구체적인 알고리즘 클래스를 바꿔서 사용할 수 있게 하는 디자인 패턴이다.
+- UserDao는 전략 패턴의 컨텍스트에 해당한다.
+  - 컨텍스트는 자신의 기능을 수행하는 데 필요한 기능 중에서 변경 가능한, DB 연결 방식이라는 알고리즘을 ConnectionMaker라는 인터페이스로 정의하고, 이를 구현한 클래스, 즉 번략을 바꿔가면서 사용할 수 있게 분리했다.
+ 
+## 1.4 제어의 역전
+
+### 1.4.1 오브젝트 팩토리
+- 현재 UserDaoTest는 UserDao의 기능이 잘 작동하는지 테스트하려고 만들었지만 엉겹결에 어떤 ConnectionMaker 구현 클래스를 사용할지 결정하는 기능도 떠맡게 되었다.
+- 관심사를 분리하자.
+  - UserDao와 ConnectionMaker 구현 클래스의 오브젝트를 만드는 역할
+  - 그렇게 만들어진 두 개의 오브젝트가 연결돼서 사용할 수 있도록 관계를 맺어주는 역할
+#### 팩토리
+- 객체의 생성 방법을 결정하고 그렇게 만들어진 오브젝트를 오브젝트를 돌려주는 클래스를 만들어보겠다. ㅌ
+- 이런 일을 하는 오브젝트를 `팩토리(factory)`라고 부른다.
+```java
+// 1-14. UserDao의 생성 책임을 맡은 팩토리 클래스
+package springbook.user.dao;
+...
+public class DaoFactory {
+  public UserDao userDao() {
+    ConnectionMaker connectionMaker = new DConnectionMaker();
+    UserDao userDao = new UserDao(connectionMaker);
+    return userDao;
+  }
+}
+```
+```java
+// 1-15. 팩토리를 사용하도록 수정한 UserDaoTest
+public class UserDaoTest {
+  public static void main(String[] args) throws ClassNotFoundException, SQLException {
+    UserDao dao = new DaoFactory.userDao();
+    ...
+  }
+}
