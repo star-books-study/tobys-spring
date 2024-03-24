@@ -169,6 +169,8 @@ whiteship 조회 성공
 - 프로그래밍의 기초 개념 중 하나인 `관심사의 분리`를 객체지향에 적용해보면 다음과 같다.
   - 관심이 같은 것끼리는 하나의 객체 안으로 또는 친한 객체로 모이게 한다.
   - 관심이 다른 것은 가능한 따로 떨어져서 서로 영향을 주지 않도록 분리한다.
+ 
+
 ### 1.2.2 커넥션 만들기의 추출
 UserDao에 구현된 add() 메소드에서 적어도 세 가지의 관심사항을 발견할 수 있다.
 #### UserDao의 관심사항
@@ -179,6 +181,7 @@ UserDao에 구현된 add() 메소드에서 적어도 세 가지의 관심사항�
 #### 중복 코드의 메서드 추출
 커넥션을 가져오는 중복된 DB 연결 코드를 getConnection()이라는 이름의 독립적인 메서드로 만든다.
 ```java
+// 1-4. getConnection() 메서드를 추출해서 중복을 제거한 UserDao
 public void add(User user) throws ClassNotFoundException, SQLException {
   Connection c = getConnection();
   ...
@@ -199,3 +202,51 @@ private Connection getConnection() throws ClassNotFoundException, SQLException {
 - 관심의 종류에 따라 코드를 구분해놓았기 때문에 한 가지 관심에 대한 변경이 일어날 경우 그 관심이 집중되는 부분의 코드만 수정하면 된다.
 
 #### 변경사항에 대한 검증 : 리팩토링과 테스트
+- main() 메서드를 여러 번 실행하면 id 값이 중복되기 때문에 두 번째부터는 무조건 예외가 발생한다.
+  => main() 메서드 재실행 전 User 테이블의 사용자 정보를 모두 삭제해주어야 한다.
+- 기능에는 영향을 주지 않으면서 코드의 구조만 변경하는 작업을 `리팩토링`이라고 한다
+- 공통의 기능을 담당하는 메서드로 중복된 코드를 뽑아내는 것을 `메소드 추출(extract method)`기법이라고 한다.
+
+### 1.2.3 DB 커넥션 만들기의 독립
+- 만약 발전을 거듭한 UserDao가 인기를 끌어 N사와 D사에서 UserDao를 구매하겠다는 주문이 들어왔다고 하자.
+- 문제
+  - N 사와 D 사가 각기 다른 종류의 DB를 사용하고 DB 커넥션을 가져오는 데 있어 독자적으로 만든 방법을 적용하고 싶어한다.
+  - 고객에게 소스를 직접 공개하고 싶지는 않다. 미리 컴파일된 클래스 바이너리 파일만 제공하고 싶다.
+- 어떻게 소스코드를 N사와 D사에 제공해주지 않고도 고객 스스로 원하는 DB 커넥션 생성 방식을 적용해가면서 UserDao를 사용하게 할 수 있을까?
+
+#### 상속을 통한 확장
+- getConnection()을 추상 메서드로 만들고 추상 클래스인 UserDao를 N사와 D사에 판매한다.
+- UserDao 클래스를 상속해서 NUserDao와 DUserDao라는 서브 클래스를 만든다.
+- 기존에는 같은 클래스에서 다른 메서드로 분리됐던 DB 커넥션 연결이라는 관심을 **상속을 통해 서브클래스로 분리**해버리는 것이다.
+<img width="533" alt="스크린샷 2024-03-23 오후 8 11 35" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/51d8038f-6dcc-4756-898d-c0b4bb134e6c">
+
+```java
+// 1-5. 상속을 통한 확장 방법이 제공되는 UserDao
+public abstract class UserDao {
+  public void add(User user) throws ClassNotFoundException, SQLException {
+    Connection c = getConnection();
+    ...
+  }
+  
+  public User get(String id) throws ClassNotFoundException, SQLException {
+    Connection = getConnection();
+    ...
+  }
+  
+  private abstract Connection getConnection() throws ClassNotFoundException, SQLException;
+}
+
+public class NUserDao extends UserDao {
+  public Connection getConnection() throws ClassNotFoundException, SQLException {
+    // N사 DB Connection 생성 코드
+  }
+}
+
+public class DUserDao extends UserDao {
+  public Connection getConnection() throws ClassNotFoundException, SQLException {
+    // D사 DB Connection 생성 코드
+  }
+}
+
+- UserDao가 담당하는 기능 : DAO의 핵심 기능인 어떻게 데이터를 등록하고 가져올 것인가라는 관심을 담당
+- NUserDao, DUserDao가 담당하는 기능 : DB 연결 방법은 어떻게 할 것인가라는 관심을 담당
