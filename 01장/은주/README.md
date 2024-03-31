@@ -697,3 +697,66 @@ public class UserDaoTest {
 
 ### 1.7.4. 의존관계 주입의 응용
 - 코드에는 `런타임 클래스에 대한 의존관계가 나타나지 않고`, `인터페이스` 를 통해 결합도가 낮은 코드를 만드므로, 다른 책임을 가진 사용 의존관계에 있는 대상이 변경되더라도 `영향을 받지 않으며`, 변경을 통한 다양한 확장 방법에 자유롭다
+- DI 가 응용될 수 있는 사례를 살펴보자
+  - 기능 구현 교환
+    - 로컬DB 에서 운영DB 로 교체하려고 할 때, DI 설정정보에 해당하는 생성코드 1줄만 수정하면 된다.
+    ```java
+    @Bean
+    public ConnectionMaker connectionMaker() {
+      return new ProductionDBConnectionMaker();
+    }
+    ```
+  - 부가기능 추가
+    - Connection이 성립되었을 때, 총 연결된 횟수를 출력하고 싶다고 가정해보자. 
+    ```java
+      public class LoggingConnectionMaker implements ConnectionMaker{
+        int counter = 0;
+        private final ConnectionMaker realConnectionMaker;
+
+        public LoggingConnectionMaker(ConnectionMaker realConnectionMaker) {
+            this.realConnectionMaker = realConnectionMaker;
+        }
+
+        @Override
+        public Connection makeNewConnection() throws ClassNotFoundException, SQLException {
+            counter++;
+            System.out.println("커넥션 성립, 커넥션 연결 횟수: " + counter);
+            return realConnectionMaker.makeNewConnection();
+        }
+    }
+    ```
+    - ConnectionMaker인터페이스를 상속하여 makeNewConnection()에 counter를 증가시키고, 의존성 주입받은 realConnectionMaker를 반환한다.
+    ```java
+    @Configuration
+    public class LoggingDaoFactory {
+        @Bean
+        public UserDao userDao() {
+            return new UserDao(connectionMaker());
+        }
+
+        @Bean
+        public ConnectionMaker connectionMaker() {
+            return new LoggingConnectionMaker(realConnectionMaker());
+        }
+
+        @Bean
+        public ConnectionMaker realConnectionMaker() {
+            return new DConnectionMaker();
+        }
+    }
+    ```
+- 스프링은 DI 를 편하게 사용할 수 있게 도와줄 뿐만 아니라, DI 를 적극 활용한 프레임워크이기도 하다
+
+### 1.7.5. 메소드를 이용한 의존관계 주입
+- 수정자 메소드를 통한 의존관계 주입
+  - set... 등의 수정자를 이용하여 DI 가능하다.
+  - 한 번에 한 개의 파라미터만 가질 수 있다.
+  - 수정자 메소드의 핵심 기능은, 파라미터로 전달된 값을 보통 내부의 인스턴스 변수에 저장하는 것이다.
+  - 부가적으로 입력 값에 대한 검증이나 그 밖의 작업도 수행 가능하다.
+- 일반 메소드를 통한 의존관계 주입
+  - 수정자메소드처럼 set 으로 시작해야하고, 한번에 한 개의 파라미터만 가질 수 있는 제약이 싫다면, 여러 개의 파라미터를 갖는 일반 메소드를 사용할 수 있다
+  - **한번에 여러 개의 파라미터를 받을 수 있다.**
+  - 임의의 초기화 메소드를 이용하는 DI 는 적절한 개수의 파라미터를 갖는 **여러 개의 초기화 메소드를 만들 수도 있기에** 한번에 **모든 필요한 파라미터를 받아야 하는 생성자보다 낫다**
+- 스프링은 전통적으로 수정자 메소드를 가장 많이 사용해왔다.
+- XML을 사용하는 경우 자바빈 규약을 따르는 수정자 메소드가 가장 사용하기 편하다.
+- setter는 IDE에서 자동으로 생성해주는 규약을 따르는 것이 좋다.
