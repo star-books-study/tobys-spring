@@ -760,3 +760,68 @@ public class UserDaoTest {
 - 스프링은 전통적으로 수정자 메소드를 가장 많이 사용해왔다.
 - XML을 사용하는 경우 자바빈 규약을 따르는 수정자 메소드가 가장 사용하기 편하다.
 - setter는 IDE에서 자동으로 생성해주는 규약을 따르는 것이 좋다.
+
+## 1.8. XML을 이용한 설정
+- 오브젝트 사이의 의존 정보는 틀에 박힌 구조를 갖고 있으며, 일일이 자바 코드로 만들어주기 번거롭다. 
+- 또, DI 구성이 바뀔 때마다 자바 코드를 수정하고 클래스를 다시 컴파일하기도 귀찮은데 XML 은 그런 작업이 필요없다.
+- XML의 특징
+  - 단순한 텍스트 파일이라 다루기 쉽다
+  - 별도의 빌드 작업이 필요 없다
+  - 환경이 바뀌어도 XML의 내용은 바뀔 필요가 없다.
+  - 스키마나 DTD를 이용해 정해진 포맷을 따라 작성했는지 쉽게 체크 가능하다.
+
+### 1.8.1. XML 설정
+- 스프링 애플리케이션 컨텍스트는 XML에 담긴 DI 정보를 활용할 수 있다
+- **@Configuration은 <beans\>에 대응된다.**
+- **@Bean은 <bean\>에 대응된다.**
+- 하나의 @Bean 메소드를 통해 얻을 수 있는 빈의 DI 정보
+  - 빈의 이름: @Bean 메소드 이름
+  - 빈의 클래스: 빈 오브젝트를 어떤 클래스를 이용해 만들지 정의
+  - 빈의 의존 오브젝트: 빈의 생성자나 수정자 메소드를 통해 의존 오브젝트를 넣어준다.
+- XML 은 자바코드처럼 유연하게 정의할 수 없으므로, 핵심 요소를 짚어서 해당하는 태그와 애트리뷰트가 무엇인지 알아야 한다
+
+#### connectionMaker() 전환
+- 빈 설정파일
+  - 자바 : @Configuration
+  - XML : <beans\>
+- 빈 이름
+  - 자바 : @Bean methodName()
+  - XML : <bean id="methodName"\>
+- 빈 클래스
+  - 자바 : return new BeanClass();
+  - XML : class="a.b.c...BeanClass">
+- <bean\> 태그의 class 애트리뷰트에 지정하는 것은 **반드시 리턴 타입 인터페이스가 아닌 구현체 클래스를 가리켜야 한다.** 
+  - XML에서는 리턴하는 타입을 지정하지 않아도 된다.
+
+```java
+@Bean 
+public ConnectionMaker connectionMaker() {
+    return new DConnectionMaker();
+}
+```
+```xml
+<bean id="connectionMaker" class="toby_spring.chapter1.user.connection_maker.DConnectionMaker" />
+```
+- DI 컨테이너는 이 <bean\> 태그 정보를 읽어서 ConnectionMaker() 와 같은 작업을 진행한다
+
+#### userDao() 전환
+- XML로 의존관계 정보를 만들 때는 자바빈의 관례를 따라 수정자 메소드를 프로퍼티로 사용한다. 
+- **프로퍼티 이름은 set을 제외한 나머지 부분을 사용한다.**
+
+위에서 정의한 @Bean connectionMaker() 메소드를 이용한 의존성 주입 자바코드는 아래와 같다.
+```java
+userDao.setConnectionMaker(connectionMaker());
+```
+```xml
+<property name="connectionMaker" ref="connectionMaker" />
+```
+- XML에서는 의존관계 정보를 줄 때, <bean id="userDao"> 내부에 위와 같이 치환될 것이다.
+```xml
+<bean id="userDao" class="toby_spring.chapter1.user.dao.UserDao">
+    <property name="connectionMaker" ref="connectionMaker" />
+  </bean>
+```
+- <property\> 태그는 name, ref 두개의 애트리뷰트를 갖는다.
+  - name 은 **프로퍼티의 이름** 이다.
+    - 수정자 메소드에서 set 을 제외한 나머지 부분이므로, 프로퍼티 이름으로 수정자 메소드를 알 수 있다.
+  - ref 는 수정자 메소드를 통해 **주입해줄 오브젝트 빈 이름** 이다.
