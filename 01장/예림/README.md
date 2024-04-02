@@ -966,3 +966,41 @@ public ConnectionMaker connectionMaker() {
 | 빈 설정 파일 | @Configuration | <beans> |
 | 빈의 이름 | @Bean methodName() | <bean id="methodName" |
 | 빈의 클래스 | return new BeanClass(); | class="a,b,c... BeanClass">|
+
+- <bean> 태그의 class 애트리뷰트에 지정하는 것은 메서드에서 오브젝트를 만들 때 사용하는 클래스
+  -> 메서드의 리턴 타입을 class 애트리뷰트에 사용하지 않도록하자.
+- XML에서는 리턴하는 타입을 지정하지 않아도 된다. class 애트리뷰트에 넣을 클래스 이름은 패키지까지 모두 포함해야 한다.
+```java
+// 1-35. connectionMaker() 메서드의 <bean> 태그 전환
+@Bean // -> <bean
+public ConncectionMaker
+connectionMaker() { // -> id="connectionMaker"
+  return new DConnectionMaker(); // -> class "springbook...DConnectionMaker" />
+}
+```
+
+#### userDao() 전환
+- userDao의 메서드를 XML로 변환해보자.
+  - 수정자 메서드를 사용해 의존관계를 주입하는 부분에 주목
+- 자바빈의 관계를 따라서 수정자 메서드는 프로퍼티가 된다. 프로퍼티 이름은 메서드 이름에서 set을 제외한 나머지 부분을 사용한다.
+- `<property>` 태그를 사용해 의존 오브젝트와의 관계를 정의한다.
+  - name과 ref라는 두 개의 애트리뷰트를 갖는다.
+    - name : 프로퍼티 이름 
+    - ref : 수정자 메서드를 통해 주입해줄 오브젝트 빈 이름
+- @Bean 메서드에서라면 다음과 같이 @Bean 메서드를 호출해서 주입할 오브젝트를 가져온다.
+    ```java
+    userDao.setConnectionMaker(connectionMaker());
+    ```
+  - `userDao.setConnectionMaker` : userDao 빈의 connectionMaker 프로퍼티를 이용해 의존관계를 주입한다.
+  - `connectionMaker()` : connectionMaker() 메서드를 호출해서 리턴하는 오브젝트를 주입하라.
+- 각 정보를 <property> 태그에 대응하면 다음과 같이 전환이 가능하다.
+  ```java
+  <property name="connectionMaker" ref="connectionMaker" />
+  ```
+- 이렇게 완성된 userDao 빈을 위한 XML 정보다.
+  ```java
+  <bean id="userDao" class="springbook.dao.UserDao">
+    <property name="connectionMaker" ref="connectionMaekr" >
+  </bean>
+  ```
+#### XML 의존관계 주입 정보
