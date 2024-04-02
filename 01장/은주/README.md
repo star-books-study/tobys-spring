@@ -818,10 +818,86 @@ userDao.setConnectionMaker(connectionMaker());
 - XML에서는 의존관계 정보를 줄 때, <bean id="userDao"> 내부에 위와 같이 치환될 것이다.
 ```xml
 <bean id="userDao" class="toby_spring.chapter1.user.dao.UserDao">
-    <property name="connectionMaker" ref="connectionMaker" />
-  </bean>
+  <property name="connectionMaker" ref="connectionMaker" />
+</bean>
 ```
 - <property\> 태그는 name, ref 두개의 애트리뷰트를 갖는다.
   - name 은 **프로퍼티의 이름** 이다.
     - 수정자 메소드에서 set 을 제외한 나머지 부분이므로, 프로퍼티 이름으로 수정자 메소드를 알 수 있다.
   - ref 는 수정자 메소드를 통해 **주입해줄 오브젝트 빈 이름** 이다.
+
+#### XML의 의존관계 주입 정보
+```java
+@Configuration
+public class LoggingDaoFactory {
+  @Bean
+  public UserDao userDao() {
+    return new UserDao(connectionMaker());
+  }
+
+  @Bean
+  public ConnectionMaker connectionMaker() {
+    return new LoggingConnectionMaker(realConnectionMaker());
+  }
+}
+```
+
+```xml
+<beans>
+  <bean id="connectionMaker" class="springbook.user.dao.DConnectionMaker">
+  <bean id="userDao" class="springbook.user.dao.UserDao">
+    <property name="connectionMaker" ref="connectionMaker" />
+  </bean>
+</beans>
+```
+- name 애트리뷰트 : DI 에 사용할 **수정자 메소드의 프로퍼티 이름**
+- ref 애트리뷰트 : 주입할 오브젝트를 정의한 **빈의 ID**
+- 프로퍼티나 빈의 이름은 인터페이스 이름을 따르는게 자연스럽지만 다르게 해도 상관없다
+
+#### DTD 와 스키마
+- XML 문서는 미리 정해진 구조를 따라서 작성된 지 검사할 수 있다.
+- XML 문서구조를 정의하는 방법에는 DTD 와 스키마가 있다
+- 특별한 이유가 없다면 DTD 보다는 스키마를 사용하는게 바람직하다
+
+```java
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+                            http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+```
+
+### 1.8.2. XML을 이용하는 애플리케이션 컨텍스트
+- 애플리케이션 컨텍스트가 DaoFactory 대신 XML 설정정보를 활용하도록 하려면 `GenericXmlApplicationContext` 를 사용하면 된다
+- 애플리케이션 컨텍스트가 사용하는 XML 설정파일 이름은 관례를 따라 applicationContext.xml 이라고 만들며, 아래 코드 내용을 저장해둔다 (DaoFactory 의 DI 정보 전환해서 만든 XML + 스프링 스키마 적용)
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmls="http://www.springframework.org/schema/beans"
+	xmls:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+    	http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+    <bean id="connectionMaker" class="springbook.user.dao.DConnectionMaker" />
+    
+    <bean id="userDao" class="springbook.user.dao.UserDao">
+    	<property name="connectionMaker" ref="connectionMaker" />
+    </bean>
+</beans>
+```
+- 다음은 애플리케이션 컨텍스트 생성부분인데 AnnotationConfigApplicationContext 대신 GenericXmlApplicationContext 를 이용해 애플리케이션 컨텍스트를 생성한다.
+```java
+public class UserDaoTest {
+    public static void main(String[] args) throws SQLException, ClassNotFoundException {
+        ApplicationContext context = new AnnotationConfigApplicationContext(DaoFactory.class);
+
+        UserDao userDao = applicationContext.getBean("userDao", UserDao.class);
+    }
+}
+```
+```java
+ApplicationContext context = new GenericXmlApplicationContext("applicationContext.xml");
+```
+- GenericXmlApplicationContext 말고도 ClassPathXmlApplicationContext 를 사용할 수 있는데, `ClassPathXmlApplicationContext` 는 XML 파일과 **같은 클래스패스에 있는 클래스 오브젝트를 넘겨서 클래스패스에 대한 힌트를 제공할 수 있다**
+  - UserDao 를 함께 넣어주면, XML 파일 위치를 UserDao 의 위치로부터 `상대적`으로 지정할 수 있다
+  ```java
+  new GenericXmlApplicationContext("springbook/user/dao/daoContext.xml");
+  new ClassPathXmlApplicationContext("daoContext.xml", UserDao.class);
+  ```
