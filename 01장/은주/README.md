@@ -901,3 +901,6 @@ ApplicationContext context = new GenericXmlApplicationContext("applicationContex
   new GenericXmlApplicationContext("springbook/user/dao/daoContext.xml");
   new ClassPathXmlApplicationContext("daoContext.xml", UserDao.class);
   ```
+### 1.8.3. DataSource 인터페이스로 변환
+- ConnectionMaker와 같은 일을 하는 DataSource라는 인터페이스가 이미 존재한다.
+- DataSource 인터페이스와 다양한 DataSource 구현 클래스 사용하도록 리팩토링해보자
