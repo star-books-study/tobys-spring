@@ -985,7 +985,7 @@ connectionMaker() { // -> id="connectionMaker"
 - 자바빈의 관계를 따라서 수정자 메서드는 프로퍼티가 된다. 프로퍼티 이름은 메서드 이름에서 set을 제외한 나머지 부분을 사용한다.
 - `<property>` 태그를 사용해 의존 오브젝트와의 관계를 정의한다.
   - name과 ref라는 두 개의 애트리뷰트를 갖는다.
-    - name : 프로퍼티 이름 
+    - name : DI에 사용할 수정자 메서드의 프로퍼티 이름 
     - ref : 수정자 메서드를 통해 주입해줄 오브젝트 빈 이름
 - @Bean 메서드에서라면 다음과 같이 @Bean 메서드를 호출해서 주입할 오브젝트를 가져온다.
     ```java
@@ -1004,3 +1004,64 @@ connectionMaker() { // -> id="connectionMaker"
   </bean>
   ```
 #### XML 의존관계 주입 정보
+```java
+// 1-37. 완성된 XML 설정 정보
+<beans>
+  <bean id="connectionMaker" class="springbook.user.dao.DConnectionMaker" />
+  <bean id="userDao" class="springbook.user.dao.UserDao">
+    <property name="connectionMaker" ref="connectionMaker" />
+  </bean>
+</beans>
+```
+- 보통 프로퍼티의 이름과 DI되는 빈의 이름이 같은 경우가 많다. 둘 다 주입할 빈 오브젝트의 인터페이스 이름을 따르는 경우가 많기 때문이다.
+- 하지만 프로퍼티 이름이나 빈의 이름은 인터페이스 이름과 다르게 정해도 상관없다.
+- 빈의 이름을 바꾸는 경우 그 이름을 참조하는 다른 빈의 <property> ref 애트리뷰트의 값도 함꼐 변경해줘야 한다.
+```java
+// 1-38. 빈의 이름과 참조 ref의 변경
+<beans>
+  <bean id="myConnectionMaker" class="springbook.user.dao.DConnectionMaker" />
+
+  <bean id="userDao" class="springbook.user.dao.UserDao">
+    <property name="connectionMaker" ref="myConnectionMaker" />
+  </bean>
+</beans>
+
+- 때로는 같은 인터페이스를 구현한 의존 오브젝트를 여러 개 정의해두고 그 중에서 원하는 걸 골라 DI하는 경우도 있다.
+- 이때는 각 빈의 이름을 독립적으로 만들어두고 ref 애트리뷰트를 이용해 DI 받을 빈을 지정해주면 된다.
+```java
+// 1-39. 같은 인터페이스 타입의 빈을 여러 개 정의한 경우
+<beans>
+  <bean id="localDBConnectionMaker" class="...LocalDBConnectionMaker" />
+  <bean id="testDBConnectionMaker" class="...TestDBConnectionMaker" />
+  <bean id='productionDBConnectionMaker" class="...ProductionDBConnectionMaker" />
+
+  <bean id="userDao" class="springbook.user.dao.UserDao">
+    <property name="connectionMaker" ref="localDBConnectionMaker" />
+  </bean>
+</beans>
+```
+- 환경에 따라 XML 파일을 다르게 사용하면 된다.
+
+> **DTD와 스키마**
+>
+> - XML 문서는 미리 정해진 구조를 따라서 작성됐는지 검사할 수 있다. XML 문서의 구조를 정의하는 방법에는 DTD와 스키마(schema)가 있다.
+> - 특별한 이유가 없다면 DTD보다는 스키마를 사용하는 편이 바람직하다.
+
+### 1.8.2 XML을 이용하는 애플리케이션 컨텍스트
+- 애플리케이션 컨텍스트가 DaoFactory 대신 XML 설정정보를 활용하도록 만들어보자.
+- XML에서 빈의 의존관계 정보를 이용하는 IoC/DI 작업에는 GeneralXmlApplicationContext를 사용한다.
+  - GeneralXmlApplicationContext의 생성자 파라미터로 XML 파일의 클래스패스를 지정해주면 된다.
+- 애플리케이션 컨텍스트가 사용하는 XML 설정파일의 이름은 과례를 따라 applicationContext.xml이라고 만든다.
+```java
+// 1-40. XML 설정 정보를 담은 applicationContext.xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans /spring-beans=3.0.xsd">
+  <bean id="connectionMaker" class="springbook.user.dao.DConnectionMaker" />
+  <bean id="userDao"  class="springbook.user.dao.UserDao">
+    <property name="connectionMaker" ref="localDBConnectionMaker" />
+  </bean>
+</beans>
+```
+
