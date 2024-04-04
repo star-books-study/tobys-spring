@@ -904,3 +904,55 @@ ApplicationContext context = new GenericXmlApplicationContext("applicationContex
 ### 1.8.3. DataSource 인터페이스로 변환
 - ConnectionMaker와 같은 일을 하는 DataSource라는 인터페이스가 이미 존재한다.
 - DataSource 인터페이스와 다양한 DataSource 구현 클래스 사용하도록 리팩토링해보자
+
+### 1.8.4. 프로퍼티 값의 주입
+```java
+@Configuration
+public class DaoFactory {
+    @Bean
+    public UserDao userDao() throws ClassNotFoundException {
+        return new UserDao(dataSource());
+    }
+
+    @Bean
+    public DataSource dataSource() {
+        SimpleDriverDataSource dataSource = new SimpleDriverDataSource();
+        dataSource.setDriverClass(org.postgresql.Driver.class);
+        dataSource.setUrl("jdbc:postgresql://localhost/toby_spring");
+        dataSource.setUsername("postgres");
+        dataSource.setPassword("iwaz123!@#");
+        return dataSource;
+    }
+}
+```
+- 위와 같이 UserDao가 의존하는 객체를 DataSource 인터페이스로 바꾸고, DaoFactory에서 새로 생성한 SimpleDriverDataSource 오브젝트를 주입하면 된다.
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+    
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
+        <property name="username" value="postgres" />
+        <property name="password" value="iwaz123!@#" />
+        <property name="driverClass" value="org.postgresql.Driver" />
+        <property name="url" value="jdbc:postgresql://localhost/toby_spring" />
+    </bean>
+
+    <bean id="userDao" class="toby_spring.chapter1.user.dao.UserDao">
+        <property name="dataSource" ref="dataSource" />
+    </bean>
+</beans>
+```
+- bean으로 정의한 것을 프로퍼티로 주입할 때는 ref를 사용하고, **일반 값을 프로퍼티로 주입할 때는 value를 사용**한다.
+- driverClass는 java.lang.Class 타입인데 어떻게 "org.postgresql.Driver" 라는 string 값이 Class 타입 파라미터를 갖는 수정자 메소드에 사용될 수 있는 것인가?
+  - 이유는 **스프링이 프로퍼티의 값을 수정자 메소드 파라미터의 타입을 참조하여 적절하게 변환**해주기 때문이다.
+  - 스프링은 수정자 메소드의 파라미터 타입이 Class임을 확인하고 org.postgresql.Driver 오브젝트로 자동 변경해준다.
+  - 내부적으로 아래와 같은 변환작업이 일어난다고 생각하면 된다.
+  ```java
+  Class driverClass = Class.forName("org.postgresql.Driver");
+  dataSource.setDriverClass(driverClass);
+  ```
+- 스프링은 value에 지정한 텍스트 값을 적절한 자바 타입으로 변환해주는데, Integer, Double, String, Boolean과 같은 기본 타입은 물론이고, Class, URL, File, Charset 같은 오브젝트로 변환이 가능하다. 
+  - 값이 여러개라면 List, Map, Set, Properties나 배열로도 주입이 가능하다.
