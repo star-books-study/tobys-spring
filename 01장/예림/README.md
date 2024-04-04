@@ -994,7 +994,7 @@ connectionMaker() { // -> id="connectionMaker"
   - `userDao.setConnectionMaker` : userDao 빈의 connectionMaker 프로퍼티를 이용해 의존관계를 주입한다.
   - `connectionMaker()` : connectionMaker() 메서드를 호출해서 리턴하는 오브젝트를 주입하라.
 - 각 정보를 <property> 태그에 대응하면 다음과 같이 전환이 가능하다.
-  ```java
+  ```xml
   <property name="connectionMaker" ref="connectionMaker" />
   ```
 - 이렇게 완성된 userDao 빈을 위한 XML 정보다.
@@ -1004,7 +1004,7 @@ connectionMaker() { // -> id="connectionMaker"
   </bean>
   ```
 #### XML 의존관계 주입 정보
-```java
+```xml
 // 1-37. 완성된 XML 설정 정보
 <beans>
   <bean id="connectionMaker" class="springbook.user.dao.DConnectionMaker" />
@@ -1016,7 +1016,7 @@ connectionMaker() { // -> id="connectionMaker"
 - 보통 프로퍼티의 이름과 DI되는 빈의 이름이 같은 경우가 많다. 둘 다 주입할 빈 오브젝트의 인터페이스 이름을 따르는 경우가 많기 때문이다.
 - 하지만 프로퍼티 이름이나 빈의 이름은 인터페이스 이름과 다르게 정해도 상관없다.
 - 빈의 이름을 바꾸는 경우 그 이름을 참조하는 다른 빈의 <property> ref 애트리뷰트의 값도 함꼐 변경해줘야 한다.
-```java
+```xml
 // 1-38. 빈의 이름과 참조 ref의 변경
 <beans>
   <bean id="myConnectionMaker" class="springbook.user.dao.DConnectionMaker" />
@@ -1025,10 +1025,10 @@ connectionMaker() { // -> id="connectionMaker"
     <property name="connectionMaker" ref="myConnectionMaker" />
   </bean>
 </beans>
-
+```
 - 때로는 같은 인터페이스를 구현한 의존 오브젝트를 여러 개 정의해두고 그 중에서 원하는 걸 골라 DI하는 경우도 있다.
 - 이때는 각 빈의 이름을 독립적으로 만들어두고 ref 애트리뷰트를 이용해 DI 받을 빈을 지정해주면 된다.
-```java
+```xml
 // 1-39. 같은 인터페이스 타입의 빈을 여러 개 정의한 경우
 <beans>
   <bean id="localDBConnectionMaker" class="...LocalDBConnectionMaker" />
@@ -1052,7 +1052,7 @@ connectionMaker() { // -> id="connectionMaker"
 - XML에서 빈의 의존관계 정보를 이용하는 IoC/DI 작업에는 GeneralXmlApplicationContext를 사용한다.
   - GeneralXmlApplicationContext의 생성자 파라미터로 XML 파일의 클래스패스를 지정해주면 된다.
 - 애플리케이션 컨텍스트가 사용하는 XML 설정파일의 이름은 과례를 따라 applicationContext.xml이라고 만든다.
-```java
+```xml
 // 1-40. XML 설정 정보를 담은 applicationContext.xml
 <?xml version="1.0" encoding="UTF-8" ?>
 <beans xmlns="http://www.springframework.org/schema/beans"
@@ -1078,4 +1078,68 @@ ApplicationContext context = GenericXmlApplicationContext("applcationContext.xml
 
 ### 1.8.3 DataSource 인터페이스로 변환
 #### DataSource 인터페이스 적용
+- 사실 자바에서는 DB 커넥션을 가져오는 오브젝트의 기능을 추상화해서 비슷한 용도로 사용할 수 있게 만들어진 DataSource라는 인터페이스 존재 -> 실전에서는 ConnectionMaker를 만들어서 사용하지 않아도 됨.
+- DataSource를 직접 구현해서 클래스를 만들 일은 거의 없고, DB 연결과 같은 pooling 기능을 갖춘 많은 구현 클래스를 가져다 사용하면 충분하다.
+```java
+// 1-41. DataSource 인터페이스
+package javax.sql
 
+public interface DataSource extends CommonDataSource, Wrapper {
+  Connection getConnection() throws SQLException; // ConnectionMaker의 makeConnection()과 목적 동일
+}
+```
+
+- DataSource의 인터페이스와 다양한 구현 클래스를 사용할 수 있도록 UserDao를 리팩토링 해보자.
+  - ConnectionMaker -> DataSource / makeConnection() -> getConnection()
+```java
+// 1-42. DataSource를 사용하는 UserDao
+import javax.sql.DataSource;
+
+public class UserDao {
+  private DataSource dataSource;
+
+  public void setDataSource(DataSource dataSource) {
+    this.dataSource = dataSource;
+  }
+
+  public void add(User user) throws SQLException {
+    Connection c = dataSource.getConnection();
+    ...
+  }
+  ...
+}
+```
+  
+- 다음은 DataSource의 구현 클래스가 필요하다. DriverManager를 사용하는 SimpleConnectionMaker처럼 DataSource의 구현 클래스 중에서 테스트 환경에서 간단히 사용할 수 있는 SimpleDriverDataSource라는 것이 있다.
+- DB 연결에 필요한 필수 정보를 제공받을 수 있도록 여러 개의 수정자 메서드를 갖고 있다.
+
+#### 자바 코드 설정 방식
+```java
+// 1-43. DataSource 타입의 dataSource 빈 정의 메서드
+@Bean
+public DataSource dataSource() {
+  SimpleDriverDataSource dataSource = new SimpleDriverDataSource();
+
+  // DB 연결정보를 수정자 메서드를 통해 넣어준다. 이렇게 하면 오브젝트 레벨에서 DB 연결 방식을 변경할 수 있다.
+  dataSource.setDriverClass(com.mysql.jdbc.Driver.class);
+  dataSource.setUrl("jdbc:mysql://localhost/springbook");
+  dataSource.setUsername("spring");
+  dataSource.setPassword("book");
+
+  return dataSource;
+}
+```java
+// 1-44. DataSource 타입의 빈을 DI 받은 userDao() 빈 정의 메서드
+@Bean
+public UserDao userDao() {
+  UserDao userDao = new UserDao();
+  userDao.setDataSource(dataSource());
+  return userDao;
+}
+```
+#### XML 설정 방식
+```xml
+// 1-45. dataSource 빈
+<bean id="dataSource"
+  class="org.springframework.jdbc.datasource.SimpleDriverDataSource" />
+```
