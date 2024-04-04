@@ -1065,3 +1065,17 @@ connectionMaker() { // -> id="connectionMaker"
 </beans>
 ```
 
+- 다음은 UserDaoTest의 애플리케이션 컨텍스트 부분을 수정한다. 이 때 GenericXmlApplicationContext을 사용한다.
+
+```java
+ApplicationContext context = GenericXmlApplicationContext("applcationContext.xml");
+```
+
+- GenericXmlApplicationContext 외에도 ClassPathXmlApplicationContext 사용 가능
+- GenericXmlApplicationContext는 클래스 패스 뿐만 아니라 다양한 소스로부터 설정 파일을 읽어올 수 있다.
+- ClassPathXmlApplicationContext은 클래스패스의 경로정보를 클래스에서 가져오는 기능이 있다. XML 파일과 같은 클래스 패스에 있는 클래스 오브젝트를 넘겨서 클래스패스에 대한 힌트 제공 가능
+- 이 방법으로 클래스패스를 지정하는 경우가 아니라면 GenericXmlApplicationContext이 무난하다.
+
+### 1.8.3 DataSource 인터페이스로 변환
+#### DataSource 인터페이스 적용
+
