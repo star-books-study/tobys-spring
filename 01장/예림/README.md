@@ -1143,3 +1143,62 @@ public UserDao userDao() {
 <bean id="dataSource"
   class="org.springframework.jdbc.datasource.SimpleDriverDataSource" />
 ```
+
+그런데 DB 접속 정보는 나타나 있지 않다. SimpleDriverDataSource는 다른 빈에 의존하지 않는 단순 Class 타입의 오브젝트나 텍스트 값이다. 그렇다면 XML에서는 어떻게 해서 dataSource() 메서드에서처럼 DB 연결 정보를 넣도록 설정을 만들 수 있을까?
+
+### 1.8.4 프로퍼티 애트리뷰트
+
+#### 값 주입
+
+- DaoFactory의 dataSource는 수정자 메소드에 다른 빈, 오브젝트 뿐 만이 아니라 String 같은 단순한 값을 넣을 수 있음(dataSource.setUrl)
+- dataSource.setDriverClass()는 Class 타입의 오브젝트이나, 다른 빈 오브젝트를 DI 방식으로 가져와서 넣는 것은 아님
+- 이렇게 다른 빈 오브젝트의 레퍼런스가 아닌 단순 정보도 오브젝트를 초기화하는 과정에서 수정자 메소드에 넣을 수 있음
+- 이때는 DI에서처럼 오브젝트의 구현 크래스를 동적으로 바꿀수 있게 하는 목적이 아님
+- 단순히 변경 가능한 정보(DB 접속 아이디, 비밀번호와 같은)를 설정하도록 위한 것
+- 텍스트나 단순 오브젝트 등을 수정자 메서드에 넣어주는 것 ‘값을 주입’하는 것 이므로 DI의 일종임
+- `<property ref=””>`의 일종이나 단순 값을 주입하는 것이기 때문에` value` 애트리뷰트 사용
+```java
+// 1-46. 코드를 통한 DB 연결 정보 주입
+dataSource.setDriverClass(com.mysql.cj.jdbc.Driver.class);
+dataSource.setUrl("jdbc:mysql://localhost/toby?serverTimezone=UTC");
+dataSource.setUsername("root");
+dataSource.setPassword("1234");
+```
+```java
+// 1-47. XML을 이용한 DB 연결 정보 설정
+<property name="driverClass" value="com.mysql.cj.jdbc.Driver"/>
+<property name="url" value="jdbc:mysql://localhost/toby?serverTimezone=UTC"/>
+<property name="username" value="root"/>
+<property name="password" value="1234"/>
+```
+
+#### value 값의 자동 변환
+- DriverClass는 String이 아닌 java.lang.Class 타입
+- 스트링 값을 Class 타입 변수에 넣을 수는 없음
+- String이 아닌 클래스임에도 value를 통해 넣을 수 있는 까닭은, 스프링이 프로퍼티 값을, 수정자 메서드의 파라미터 타입을 참고로 해서 적절한 형태로 변환해주기 때문
+- 내부적으로 다음과 같은 변환 작업이 일어남
+  ```java
+  Class driverClass = Class.forName("com.mysql.jdbc.Driver");
+  dataSource.setDriverClass(driverClass);
+  ```
+- 값이 여러개라면 List, Map, 배열 등을 사용해 값 주입 가능
+- 최종적으로 다음과 같은 XML 설정 파일이 만들어짐
+  ```xml
+  // 1-48. DataSource를 적용 완료한 applicationContext.xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <beans xmlns="http://www.springframework.org/schema/beans"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://www.springframework.org/schema/beans
+                              http://www.springframework.org/schema/beans/spring-beans-3.0.xsd">
+      <bean id="dataSource" class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
+          <property name="driverClass" value="com.mysql.cj.jdbc.Driver"/>
+          <property name="url" value="jdbc:mysql://localhost/toby?serverTimezone=UTC"/>
+          <property name="username" value="root"/>
+          <property name="password" value="1234"/>
+      </bean>
+      <bean id="userDao" class="com.ksb.spring.UserDao">
+          <property name="dataSource" ref="dataSource"/>
+      </bean>
+  </beans>
+  ```
+## 1.9 정리
