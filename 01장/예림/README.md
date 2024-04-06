@@ -593,8 +593,11 @@ public class DaoFactory {
 - 앞서 말한 설계도라는 게 바로 이런 애플리케이션 컨텍스트와 그 설정 정보를 말한다고 보면 된다.
 - 그 자체로는 애플리케이션 로직을 담당하지는 않지만 IoC 방식을 이용해 애플리케이션 컴포넌트를 생성하고, 사용할 관계를 맺어주는 등의 책임을 담당하는 것이다.
 
-### DaoFactory를 사용하는 애플리케이션 컨텍스트
-- DaoFactory를 스프링의 빈 팩토리가 사용할 수 있는 본격적인 설정 정보로 만들어보자.
+#### DaoFactory를 사용하는 애플리케이션 컨텍스트
+- `@Configration` 애노테이션을 사용하여 설정정보 추가
+- `@Bean` 애노테이션을 사용하여 오브젝트를 만들 수 있게 함
+- 두 가지 애노테이션만으로 스프링 프레임워크의 빈 팩토리 또는 애플리케이션 컨텍스트가 IoC 방식의 기능을 제공할 설정정보가 됨
+
 ```java
 // 1-18. 스프링 빈 팩토리가 사용할 설정 정보를 담은 DaoFactory 클래스
 import org.springframework.context.annotation.Bean;
@@ -632,26 +635,56 @@ public class UserDaoTest {
 ### 1.5.2 애플리케이션 컨텍스트의 동작방식
 - 기존의 오브젝트 팩토리에 대응되는 것이 스프링의 애플리케이션 컨텍스트다. 스프링에서는 이것을 IoC 컨테이너라고 하기도 하고, 스프링 컨테이너 혹은 빈 팩토리 라고 부르기도 한다.
 - DaoFactory가 UserDao를 비롯한 DAO 오브젝트를 생성하고 DB 생성 오브젝트와 관계를 맺어주는 제한적인 역할을 하는 데 반해, 애플리케이션 컨텍스트는 애플리케이션에서 IoC를 적용해서 관리할 모든 오브젝트에 대한 생성과 관계 설정을 담당한다.
+
+
 <img width="595" alt="스크린샷 2024-03-24 오후 11 53 44" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/6f898944-83ac-4d41-a599-494b17033957">
+
+
 - 애플리케이션 컨텍스트는 DaoFactory 클래스를 설정 정보로 등록해두고 @Bean이 붙은 메서드 이름을 가져와 빈 목록을 만들어둔다.
 - 클라이언트가 애플리케이션 컨텍스트의 getBean() 메서드를 호출하면 자신의 빈 목록에서 요청한 이름이 있는지 찾고, 있다면 빈을 생성하는 메서드를 호출해서 오브젝트를 생성시킨 후 클라이언트에 돌려준다.
 - DaoFactory를 오브젝트 팩토리로 직접 사용했을 때와 비교해서 애플리케이션 컨텍스트를 사용했을 때 얻을 수 있는 장점은 다음과 같다.
-#### 클라이언트는 구체적인 팩토리 클래스를 알 필요가 없다.
-#### 애플리케이션 컨텍스트는 종합 IoC 서비스를 제공해준다.
-#### 애플리케이션 컨텍스트는 빈을 검색하는 다양한 방법을 제공한다.
+
+
+  - **클라이언트는 구체적인 팩토리 클래스를 알 필요가 없다.**
+    - 기존 팩토리 방식은 어떤 팩토리 클래스를 사용하는지 알아야 하고, 필요할 때마다 팩토리 오브젝트를 생성해야 함
+  애플리케이션 컨텍스트를 이용하면 일관된 방식으로 원하는 오브젝트를 가져올 수 있음
+    - XML처럼 단순한 방법을 사용하여 IoC 설정정보를 만들 수 있음
+  - **애플리케이션 컨텍스트는 종합 IoC 서비스를 제공해준다.**
+    - 오브젝트 생성 방식, 시점, 전략 등을 다르게 가져갈 수 있음
+    - 자동생성, 후처리, 정보의 조합, 설정 방식의 다변화, 인터셉팅 등 오브젝트를 효과적으로 활용할 수 있는 다양한 기능 제공
+    - 기반기술 서비스나 외부 시스템과의 연동을 컨테이너 차원에서 제공
+  - **애플리케이션 컨텍스트는 빈을 검색하는 다양한 방법을 제공한다.**
+    - getBean() 메소드를 사용하여 빈을 찾을 수 있음
+    - 타입만으로 빈을 검색하거나 특별한 애노테이션 설정이 되어잇는 빈을 찾을 수 있음
 ### 1.5.3 스프링 IoC의 용어 정리
-- 빈
+- **빈(Bean)**
   - 스프링이 IoC 방식으로 관리하는 오브젝트
-- 빈 팩토리
+  - 스프링을 사용하는 애플리케이션에서 만들어지는 모든 오브젝트가 전부 빈은 아님
+  - 스프링이 직접 생성과 제어를 담당하는 오브젝트만이 빈임
+- **빈 팩토리(Bean Factory)**
   - 스프링의 IoC를 담당하는 핵심 컨테이너
-- 애플리케이션 컨텍스트
+  - 빈을 등록, 생성, 조회, 관리 등의 역할을 함
+  - 보통 빈 팩토리를 사용하지 않고 빈 팩토리를 확장한 애플리케이션 컨텍스트를 이용
+  - `BeanFactory`는 빈 팩토리가 구현하고 있는 가장 일반적인 인터페이스
+- **애플리케이션 컨텍스트(Application Context)**
   - 빈 팩토리를 확장한 IoC 컨테이너
-- 설정 정보 / 설정 메타 정보
-  - 애플리케이션 컨텍스트 또는 빈 팩토리가 IoC를 적용하기 위해 사용하는 메타 정보
-- 컨테이너 또는 IoC 컨테이너
-  - IoC 방식으로 빈을 관리한다는 의미에서 애플리케이션이나 빈 팩토리를 컨테이너 또는 IoC 컨테이너라고도 한다.
-- 스프링 프레임워크
-  - 모든 IoC 컨테이너, 애플리케이션 컨텍스트를 포함해서 스프링이 제공하는 모든 기능을 통틀어 말할 때 주로 사용
+  - 기본적 기능은 빈 팩토리와 동일
+  - 추가로 스프링이 제공하는 각종 부가 서비스 제공
+  - 애플리케이션 컨텍스트라고 할 때는 스프링이 제공하는 애플리케이션 지원 기능을 모두 포함한 것
+  - ApplicationContext는 애플리케이션 컨텍스트가 구현해야 하는 기본적인 인터페이스
+  - ApplicationContext는 BeanFactory를 상속받고 있음
+  - 애플리케이션 컨텍스트 오브젝트는 보통 하나의 애플리케이션에 여러 개가 존재
+    -> 이를 통틀어서 스프링 컨테이나라고도 함
+- **설정정보/설정 메타정보(Configration metadata)**
+  - 애플리케이션 컨텍스트 또는 빈 팩토리가 IoC를 적용하기 위해 사용하는 메타정보
+  - 형상정보, 청사진(blue print) 라고도 함
+  - 주로 IoC 컨테이너에 의해 관리되는 애플리케이션 오브젝트를 생성하고 구성할 때 사용 됨
+- **컨테이너(container) 또는 IoC 컨테이너**
+  - 애플리케이션 컨텍스트나 빈 팩토리를 컨테이너 또는 IoC 컨테이너 라고도 함
+  - 컨테이너 말 자체가 IoC 개념을 담고 있음
+- **스프링 프레임워크**
+  - IoC 컨테이너, 애플리케이션 컨텍스트를 포함해서 스프링이 제공하는 모든 기능을 통틀어 말할 때 스프링 프레임워크라 함
+  - 줄여서 스프링이라 함
 
 ## 1.6 싱글톤 레지스트리와 오브젝트 스코프
 - 스프링의 애플리케이션 컨텍스트는 기존에 직접 만들었던 오브젝트 팩토리와는 중요한 차이점이 있다.
@@ -907,42 +940,95 @@ public UserDao() {
 - UserDao가 ConnectionMaker 인터페이스에 의존하고 있다는 건, ConnectionMaker를 구현하기만 한다면 어떤 오브젝든 사용할 수 있다는 뜻
 
 #### 기능 구현의 교환
-- 만약 로컬 DB를 사용해 개발하다가 이제는 운영서버로 배치해서 사용하려고 하는데, DI 방식을 사용하지 않았다면 초난감 DAO에서 한 것과 같은 방식으로 구현해야 한다.
-- 반면 DI 방식을 적용하면 서버에 배포할 때 어떤 DAO 클래스와 코드도 수정할 필요가 없다.
+- 만약 로컬DB와 운영DB를 번갈아 사용해야 하는 상황이라고 가정해보자.
+- DI 방식을 적용하지 않는다면 로컬 DB로 개발중에는 로컬 구체 클래스에 의존하고, 운영DB를 사용할때는 운영 구체 클래스에 의존하므로 번갈아 사용할때마다 DAO를 무진장 고쳐야 한다. 
+
+- DI방식을 사용한다면 모든 DAO는 생성 시점에 ConnectionMaker 타입의 오브젝트를 컨테이너로부터 제공받는다. 
 ```java
 // 1-28. 개발용 ConnectionMaker 생성 코드
 @Bean
-public ConnectionMaker connectionMaker() {
-  return new LocalDBConnectionMaker();
+public ConnectionMaker connectionMaker(){
+	return new LocalDBConnectionMaker();
 }
 ```
 ```java
 // 1-29. 운영용 ConnectionMaker 생성 코드
 @Bean
-public ConnectionMaker connectionMaker() {
-  return new ProductionDBConnectionMaker();
+public ConnectionMaker connectionMaker(){
+	return new ProductionDbConnectionMaker();
 }
 ```
-- 개발 환경과 운영 환경에서 DI의 설정 정보에 해당하는 DaoFactory만 다르게 만들어두면 나머지 코드에는 손대지 않아도 된다.
-#### 부가 기능 추가
-- DAO가 DB를 얼마나 많이 연결해서 사용하는지 파악하고 싶다고 해보자.
-- DB 연결 횟수를 세는 일은 DAO의 관심사항이 아니다. 어떻게든 분리돼야 할 책임이기도 하다.
-- DI 컨테이너에서라면 간단한 방법으로 가능하다. DAO와 DB 커넥션을 만드는 오브젝트 사이에 연결횟수를 카운팅하는 오브젝트를 하나 더 추가하는 것이다.
+- 로컬 DB에서 운영DB로 옮겨도 DAO 코드를 단 한줄도 수정할 필요가 없다.
+- 단지 서버에서 사용할 DaoFactory를 1-29와 같이 수정해주면 된다.
+#### 부가기능 추가
+- 다음과 같은 상황이 존재한다고 해보자.
+- DAO가 DB를 얼마나 많이 연결해서 사용하는지 파악하고 싶어서 
+모든 makeConnection() 메소드를 호출하는 부분에 카운터를 증가시키는 코드를 넣으려고 한다. 
+- 다행히 DI 컨테이너라면 아주 간단한 방법으로 카운팅이 가능하다. DAO와 DB 커넥션을 만드는 오브젝트 사이에 연결횟수를 카운팅하는 오브젝트를 추가하는 것이다. 아래 코드를 보자.
+```java
+// 1-31. CountingConnectionMaker 의존관계가 추가된 DI 설정용 클래스
+public class CountingConnectionMaker implements ConnectionMaker{
+	int count = 0;
+    private ConnectionMaker realConnectionMaker;
+	
+	public CountingConnectionMaker(ConnectionMaker realConnectionMaker){
+    	this.realConnectionMaker = realConnectionMaker;
+    }    
+    public Connection makeConnection() throws ClassNotFoundException, SQLException{
+    	this.counter++;
+        return realConnectionMaker.makeConnection();
+    }
+    
+    public int getCounter(){
+    	return this.counter;
+    }
+}
+```
+- CountingConnectionMaker라는 클래스는 ConnectionMaker를 구현해서 만든다.
+- 하지만 내부에서 직접 커넥션을 만들지 않는다. 대신 DAO가 DB 커넥션을 가져올 때마다 호출하는 makeConnection()에서 카운터를 증가시킨다.
+ 
+- 카운팅 증가 작업이 끝나면, 실제 DB 커넥션을 만들어주는 realConnectionMaker에 저장된  ConnectionMaker타입 오브젝트의 makeConnection()을 호출해 그 결과를 DAO에 돌려준다.
 
-<img width="632" alt="스크린샷 2024-03-31 오후 11 52 37" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/362a57ea-1aa5-4e96-8ad8-540701b0b688">
-<img width="602" alt="스크린샷 2024-03-31 오후 11 52 43" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/2245d856-8916-461f-a5dc-25a5bdc8aec7">
+- 그럼 설정정보는 아래와 같이 변경된다.
 
-- CountingConnectionMaker가 추가되면서 런타임 의존관계가 다음과 같이 바뀐다.
-<img width="508" alt="스크린샷 2024-03-31 오후 11 53 11" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/d5f6d677-e259-4b2c-b756-2ed35d2c53cc">
+```java
+@Configuration
+public class DaoFactory{
+	...
+    ...
+    @Bean
+    public UserDao userDao(){
+    	return new UserDao(connectionMaker());
+    }
+    
+	@Bean
+    public ConnectionMaker connectionMaker(){
+    	return new CountingConnectionMaker(realConnectionMaker());
+    }
+    
+    @Bean
+    public ConnectionMaker realConnectionMaker(){
+    	return new DConnectionMaker();
+    }
+}
+```
 
-### 1.7.5 메서드를 이용한 의존관계 주입
-- 의존관계 주입 시 일반 메서드를 사용할 수 있다. 두 가지 방법이 있다.
-  - 수정자 메서드를 이용한 주입
-  - 일반 메서드를 이용한 주입
-- 전통적으로 수정자 메서드를 사용해왔다.
-<img width="612" alt="스크린샷 2024-03-31 오후 11 55 29" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/6853020b-0716-4205-840b-46b77e37e2bf">
+### 1.7.5 메소드를 이용한 의존관계 주입
+- 의존관계 주입 시 생성자만 사용해야 하는 것은 아니다. 다른 방법들을 소개한다.
 
-- 다음은 수정자 메서드 DI를 이용해 UserDao 타입의 빈을 만드는 DaoFactory의 userDao() 메서드다.
+- **수정자 메소드를 통한 의존관계 주입**
+  - setter 메소드를 활용한다. setter는 IDE의 자동생성을 사용하도록 하자.
+  ```java
+  public class UserDao{
+      private ConnectionMaker connectionMaker;
+  
+      public void setConnectionMaker(ConnectionMaker connectionMaker){
+          this.connectionMaker = connectionMaker;
+      }
+  }
+  ```
+- **일반 메소드를 통한 의존관계 주입**
+  - 수정자 메소드와 달리 한번에 여러 개의 파라미터를 받을 수 있다는 장점이 있다(생성자 방식도 가능하다). 
 
 ## 1.8 XML을 이용한 설정
 - 본격적인 DI 컨테이너를 사용하면서 오브젝트 사이의 의존 정보는 일일히 자바 코드로 만들어주려면 번거롭다.
@@ -1202,3 +1288,12 @@ dataSource.setPassword("1234");
   </beans>
   ```
 ## 1.9 정리
+- 책임이 다른 코드를 분리하여 두 개의 클래스로 만들었다. (`관심사의 분리`, `리팩토링`)
+- 추후에 변경이 일어날 수 있는 부분은 인터페이스(`ConnectionMaker`)를 만들어 구현하도록 하고, 다른 클래스에서 인터페이스를 통해서만 접근하도록 만들었다. 인터페이스를 정의한 쪽의 구현 방법이 달라져 클래스가 바뀌더라도, 그 기능을 사용하는 클래스의 코드는 같이 수정할 필요가 없게 만들었다. (`전략 패턴`)
+- 자신의 책임 자체가 변경되는 경우 외에는 불필요한 변화가 발생하지 않도록 막아주고, UserDao가 사용하는 외부 오브젝트의 기능은 자유롭게 확장하거나 변경할 수 있게 만들었다. (개방 폐쇄의 원칙)
+- 한쪽의 기능 변화가 다른쪽의 변경을 요구하지 않아도 되도록 만들고(낮은 결합도), 자신의 책임과 관심사에만 순수하게 집중하는(높은 응집도) 깔끔한 코드를 만들 수 있었다.
+- 오브젝트가 생성되고 타 오브젝트와 관계를 맺는 작업의 제어권을 별도의 오브젝트(Factory)를 만들어 넘겼다. 이후 Factory의 기능을 일반화한 IoC 컨테이너로 넘겨 오브젝트 자신이 사용할 대상의 생성이나 선택에 관한 책임으로부터 자유롭게 만들었다. (`제어의 역전/IoC`)
+- 전통적 싱글톤 구현 방식의 단점을 개선한, 서버 서비스 오브젝트로서의 장점을 살릴 수 있는 싱글톤 레지스트리 를 이용하여 컨테이너를 활용하는 방법에 대해 알아봤다. (`싱글톤 레지스트리`)
+- 설계 시점에서는 클레스와 인터페이스 사이의 느슨한 의존 관계만 만들어놓고, 런타임 시에 실제 의존 오브젝트를 제 3자(DI 컨테이너)의 도움을 받아 주입받아서 동적인 의존관계를 갖게 해주는 IoC의 특별한 케이스를 알아봤다.(`의존관계 주입/DI`)
+- 의존 오브젝트를 주입할 때 생성자를 이용하는 방법과 수정자 메서드를 이용하는 방법을 알아봤다. (`생성자 주입과 수정자 주입`)
+- XML을 이용해 DI 설정정보를 만드는 방법과 의존 오브젝트가 아닌 일반 값을 외부에서 설정하여 런타임 시에 주입하는 방법을 알아봤다. (`XML 설정`)
