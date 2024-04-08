@@ -94,7 +94,7 @@ public class UserDaoTest {
 - 테스트를 이용하면 새로운 기능이 정상작동하는지 확인할 수 있을 뿐만 아니라 기존에 만들어뒀던 기능들이 영향을 받지 않고 여전히 잘 동작하는지를 확인할 수도 있다.
 
 ### 2.1.3 UserDaoTest의 문제점
-- **수동 확인 작업의 번거로움**
+1. **수동 확인 작업의 번거로움**
 
 - UserDaoTest는 테스트를 수행하는 과정과 입력 데이터의 준비를 모두 자동으로 진행하도록 만들어졌다.
 
@@ -102,9 +102,52 @@ public class UserDaoTest {
 - `add()`에서 User 정보를 DB에 등록하고, 이를 다시 `get()`을 이용해 가져왔을 때 **입력한 값과 가져온 값이 일치하는지**를 테스트 코드는 확인해주지 않는다.
 
 
-- **실행 작업의 번거로움**
+2. **실행 작업의 번거로움**
 
 - 아무리 간단히 실행 가능한 main() 메소드라고 하더라도 매번 그것을 실행하는 것은 제법 번거롭다.
 - 만약 DAO가 수백 개가 되고 그에 대한 main() 메소드도 그만큼 만들어진다면?
 
     - 전체 기능을 테스트해보기 위해 main() 메소드를 수백 번 실행해야 한다.
+## 2.2 UserDaoTest 개선
+### 2.2.1 테스트 검증의 자동화
+
+- 모든 테스트는 성공과 실패의 두 가지 결과를 가질 수 있다.
+
+    - 테스트 에러 : 테스트가 진행되는 동안에 에러가 발생해서 실패 -> 콘솔에 뜨는 에러 메시지와 호출 스택 정보를 통해 확인 가능
+    - 테스트 실패 : 테스트 작업 중에 에러가 발생하진 않았지만 그 결과가 기대한 것과 다르게 나옴 -> 별도의 확인 작업이 필요
+
+```java
+// 2-2. 수정 전 테스트 코드
+public static void main(String[] args) throws SQLException, ClassNotFoundException {
+    ...
+    
+    System.out.println(user2.getName());
+    System.out.println(user2.getPassword());
+    System.out.println(user2.getId() + " 조회 성공");
+}
+```
+
+```
+// 2-3. 수정 후 테스트 코드
+public static void main(String[] args) throws SQLException, ClassNotFoundException {
+    ...
+    
+    if (!user.getName().equals(user2.getName())) {
+        System.out.println("테스트 실패 (name)");
+    } else if (!user.getPassword().equals(user2.getPassword())) {
+        System.out.println("테스트 실패 (password)");
+    } else {
+        System.out.println("조회 테스트 성공");
+    }
+}
+```
+- 직접 출력 값을 하나씩 확인 안 해도 테스트 성공이란 출력으로 무사히 진행됨을 알 수 있다. 실패했더라도 어디서 실패하는 지 출력한다.
+
+- 자동화된 테스트를 위한 xUnit 프레임워크를 만든 켄트 벡은 "테스트란 개발자가 마음 편하게 잠자리에 들 수 있게 해주는 것"이라 했다.
+
+
+### 2.2.2 테스트의 효율적인 수행과 결과 관리
+- main() 메서드로 만든 테스트 작성 방법으로는 애플리케이션 규모가 커지고 테스트 개수가 많아지면 테스트 수행이 점점 부담이 될 것
+ => `JUnit` : 프로그래머를 위한 자바 테스팅 프레임워크. 자바로 단위 테스트 만들 때 유용하게 사용
+
+#### JUnit 테스트로 전환
