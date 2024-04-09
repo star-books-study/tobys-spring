@@ -78,3 +78,46 @@ public class XmlUserDaoTest {
   -  테스트 에러 : 테스트가 진행되는 동안에 `에러가 발생`해서 실패
   -  테스트 실패 : 테스트 작업 중에 에러가 발생하진 않았지만 그 `결과가 기대한 것과 다르게` 나옴
 - 테스트 프레임워크를 통해 두 경우 모두 검증할 수 있다.
+
+### 2.2.2. 테스트의 효율적인 수행과 결과 관리
+#### JUnit 테스트로 전환
+- 프레임워크는 개발자가 만든 클래스에 대한 제어 권한을 넘겨받아서 **주도적으로 애플리케이션의 흐름을 제어**한다.
+- 개발자가 만든 클래스의 오브젝트를 생성하고 실행하는 일은 프레임워크에 의해 진행된다.
+- 따라서 프레임워크에서 동작하는 코드는 main() 메소드도 필요 없고 오브젝트를 만들어 실행하는 코드도 필요 없다.
+
+#### 테스트 메소드 전환
+- 기존에 만들었던 main() 메소드 테스트는 제어권을 직접 가졌기에 프레임워크에 적용하기엔 적합하지 않다. 
+- 테스트 코드를 main()에서 일반 메소드로 옮겨야 한다.
+- JUnit 테스트 메소드 요구조건
+  - 메소드가 public으로 선언돼야 한다.
+  - 메소드에 @Test 애노테이션을 붙여줘야 한다.
+
+#### 검증 코드 전환
+- JUnit은 예외가 발생하거나 assertThat()에서 실패하지 않고 테스트 메소드의 실행이 완료되면 테스트가 성공했다고 인식한다.
+
+#### JUnit 테스트 실행
+- 테스트 에러 : JUnit은 assertThat()을 이용해 검증을 했을 때 기대한 결과가 아니면 이 AssertionError를 던진다
+- 테스트 예외 : 테스트 수행 중에 일반 예외가 발생한 경우에도 테스트 수행은 중단되고 테스트는 실패한다
+```java
+public class UserDaoTest {
+    @Test
+    public void addAndGet() throws SQLException {
+        ApplicationContext applicationContext = new GenericXmlApplicationContext("spring/applicationContext.xml");
+
+        UserDao userDao = applicationContext.getBean(UserDao.class);
+
+        User userToAdd = new User();
+        userToAdd.setId("hunch");
+        userToAdd.setName("헌치");
+        userToAdd.setPassword("password");
+
+        userDao.add(userToAdd);
+
+        User userToGet = userDao.get("hunch");
+
+        Assertions.assertEquals(userToAdd.getId(), userToGet.getId());
+        Assertions.assertEquals(userToAdd.getName(), userToGet.getName());
+        Assertions.assertEquals(userToAdd.getPassword(), userToGet.getPassword());
+    }
+}
+```
