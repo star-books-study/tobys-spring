@@ -151,3 +151,73 @@ public static void main(String[] args) throws SQLException, ClassNotFoundExcepti
  => `JUnit` : 프로그래머를 위한 자바 테스팅 프레임워크. 자바로 단위 테스트 만들 때 유용하게 사용
 
 #### JUnit 테스트로 전환
+- 이제 테스트용 main() 메소드를 Junit으로 전환해보자.
+- JUint 역시 제어의 권한을 담당하는 프레임워크
+  -> 개발자가 만든 클래스의 오브젝트를 생성하고 실행하는 일은 프레임워크에 의해 진행
+  -> main() 메서드를 만들 필요도, 오브젝트를 만들어서 실행시키는 코드를 만들 필요도 필요 없음
+
+#### 테스트 메서드 전환
+- main() 메서드 테스트는 프레임워크에 적용하기에 적합하지 않음.
+  - main() 메서드로 만들어졌다는 건 제어권을 직접 갖는다는 의미
+- 새로 만들 테스트 메소드는 JUnit 프레임워크가 요구하는 조건 두가지를 따라야 한다.
+    1. 메소드가 `public`으로 선언
+    2. 메소드에 `@Test` 어노테이션을 붙임
+
+```java
+// 2-4. JUnit 프레임워크에서 동작할 수 있는 테스트 메서드로 전환
+import org.junit.Test;
+...
+public class UserDaoTest {
+
+    @Test
+    public void addAndGet() throws SQLException {
+        ApplicationContext context = new
+            ClassPathXmlApplicationContext("applicationContext.xml");
+
+        UserDao dao = context.getBean("userDao", UserDao.class);
+        ...
+    }
+}
+```
+- 일반 메서드로 만들고 적절한 이름을 붙여준다.
+
+#### 검증 코드 전환
+- if/else 문장을 JUnit이 제공하는 assertThat()이라는 스태틱 메소드를 이용해 전환한다.
+```
+asserThat(user2.getName(), is(user.getName()));
+```
+
+- assertThat 메소드의 첫 번째 파라미터의 값을 두번째 파라미터로 준 매처(조건)과 비교해서
+일치하면 다음으로 넘어가고, 아니면 테스트가 실패하도록 만듭니다.
+- `is()` 매처는 equals()로 비교해주는 기능을 가졌다.
+
+
+```java
+// 2-5. JUnit을 적용한 UserDaoTest
+import static org.hamcrestCoreMatchers.is;
+import static org.junit.Assert.assertThat;
+...
+public class UserDaoTest {
+	
+	@Test 
+	public void andAndGet() throws SQLException {
+		ApplicationContext context = new GenericXmlApplicationContext("applicationContext.xml");
+		UserDao dao = context.getBean("userDao", UserDao.class);
+		
+		User user = new User();
+		user.setId("hunny");
+		user.setName("hunny");
+		user.setPassword("spring");
+
+		dao.add(user);
+			
+		User user2 = dao.get(user.getId());
+		
+		assertThat(user2.getName(), is(user.getName()));
+		assertThat(user2.getPassword(), is(user.getPassword()));
+	}
+}
+```
+
+#### JUnit 테스트 실행
+- JUnit 프레임워크도 어디선가 한 번은 JUnit 프레임워크를 시작시켜 줘야 한다.
