@@ -221,3 +221,73 @@ public class UserDaoTest {
 
 #### JUnit 테스트 실행
 - JUnit 프레임워크도 어디선가 한 번은 JUnit 프레임워크를 시작시켜 줘야 한다.
+- 어디에든 main() 메서드를 하나 추가하고, 그 안에 JUnitCore 클래스의 main 메서드를 호출해주는 간단한 코드를 넣어주면 된다.
+- 메서드 파라미터에는 @Test 테스트 메서드를 가진 클래스의 이름을 넣어준다.
+
+```java
+// 2-6. JUnit을 이용해 테스트를 실행해주는 main() 메서드
+import org.junit.runner.JUnitCore;
+...
+public static void main(String[] args) {
+	jUnitCore.main("spring.user.dao.UserDaoTest");
+}
+```
+- 테스트 에러 : JUnit은 assertThat()을 이용해 검증을 했을 때 기대한 결과가 아니면 이 `AssertionError`를 던진다. 따라서 assertThat()의 조건을 만족하지 못하면 테스트는 더 이상 진행되지 않고 JUnit은 테스트가 실패했음을 알게 된다.
+- 테스트 예외 : 테스트 수행 중에 일반 예외가 발생한 경우에도 마찬가지로 테스트 수행은 중단되고 테스트는 실패한다.
+
+## 2.3 개발자를 위한 테스팅 프레임워크 JUnit
+### 2.3.1 JUnit 테스트 실행 방법
+- 가장 좋은 JUnit 테스트 실행 방법은 자바 IDE에 내장된 JUnit 테스트 지원 도구를 사용하는 것이다.
+
+#### IDE
+
+- IDE를 통해 JUnit 테스트의 실행과 그 결과를 확인하는 방법
+- 매우 간단하고 직관적이며 소스와 긴밀하게 연동돼서 결과를 볼 수 있다.
+
+#### 빌드 툴
+
+- 여러 개발자가 만든 코드를 모두 통합해서 테스트를 수행해야 할 때도 있다.
+
+- 이런 경우에는 서버에서 모든 코드를 가져와 통합하고 빌드한 뒤에 테스트를 수행하는 것이 좋다.
+- 이때는 빌드 스크립트를 이용해 JUnit 테스트를 실행하고 그 결과를 메일 등으로 통보받는 방법을 사용하면 된다.
+
+### 2.3.2 테스트 결과의 일관성
+- 테스트가 외부 상태에 따라 성공하기도 하고 실패하기도 하면 안된다.
+- 일관성있는 결과를 위해 DB 초기화가 필요하다.
+- UserDaoTest의 문제는 이전 테스트 떄문에 DB에 등록된 중복 데이터가 있을 수 있다는 점이다.
+- 가장 좋은 해결책은 테스트를 마치고 나면 등록한 사용자 정보를 삭제하는 것이다.
+
+#### deleteAll()의 getCount() 추가
+
+- deleteAll 추가
+	```java
+	public void deleteAll() throws SQLException {
+		Connection c = dataSource.getConnection();
+		PreparedStatement ps = c.prepareStatement("delete from users");
+		
+		ps.executeUpdate();
+		
+		ps.close();
+		c.close();
+	}
+	```
+- getCount()
+  - USER 테이블의 레코드 개수를 돌려준다.
+  ```java
+	public int getCount() throws SQLException {
+		Connection c = dataSource.getConnection();
+		PreparedStatement ps = c.prepareStatement("select count(*) from users");
+		
+		ResultSet rs = ps.executeQuery();
+		rs.next();
+		int count = rs.getInt(1);
+		
+		rs.close();
+		ps.close();
+		c.close();
+		
+		return count;
+	}
+  ```
+
+  
