@@ -121,3 +121,52 @@ public class UserDaoTest {
     }
 }
 ```
+
+## 2.3. 개발자를 위한 테스팅 프레임워크 JUnit
+- 스프링 프레임워크 자체도 JUnit 프레임워크를 이용해 테스트하며 개발되었다
+- 스프링의 핵심 기능 중 하나인 스프링 테스트 모듈도 JUit 을 이용한다
+
+### 2.3.1. JUnit 테스트 실행 방법
+- IDE
+  - 매우 간단하고 직관적이며 소스와 긴밀하게 연동돼서 결과를 볼 수 있다.
+- 빌드 툴
+  - 여러 개발자가 만든 코드를 모두 통합해서 테스트를 수행해야 할 때도 있다.
+  - 이 경우, 서버에서 모든 코드를 가져와 통합하고 빌드한 뒤에 테스트를 수행하는 것이 좋다.
+  - 이때는 빌드 스크립트를 이용해 JUnit 테스트를 실행하고 그 결과를 메일 등으로 통보받는 방법을 사용하면 된다.
+
+### 2.3.2. 테스트 결과의 일관성
+- addAndGet() 테스트의 불편한점은 실행 전 수동으로 USER 테이블 내용을 모두 삭제해 줘야 하는 것이다
+#### 동일한 결과를 보장하는 테스트
+```java
+@Test
+    public void addAndGet() throws SQLException {
+        ApplicationContext applicationContext = new GenericXmlApplicationContext("spring/applicationContext.xml");
+        UserDao userDao = applicationContext.getBean(UserDao.class);
+
+        // `deleteAll()`, `getCount()` 기능 동작 확인
+        userDao.deleteAll();
+        assertEquals(userDao.getCount(), 0);
+
+        User userToAdd = new User();
+        userToAdd.setId("jinkyu1");
+        userToAdd.setName("진규");
+        userToAdd.setPassword("password");
+        userDao.add(userToAdd);
+        // 유저가 있을 때, `getCount()` 기능 동작 확인
+        assertEquals(userDao.getCount(), 1);
+
+        User userToGet = userDao.get("jinkyu1");
+        // 유저가 제대로 등록되었는지 확인
+        assertEquals(userToAdd.getId(), userToGet.getId());
+        assertEquals(userToAdd.getName(), userToGet.getName());
+        assertEquals(userToAdd.getPassword(), userToGet.getPassword());
+
+        // 유저가 있을 때, `deleteAll()`, `getCount()` 기능 동작 확인
+        userDao.deleteAll();
+        assertEquals(userDao.getCount(), 0);
+    }
+```
+- deleteAll(), getCount() 메소드를 추가한다
+- 단위테스트는 코드가 바뀌지 않는다면 **반복적으로 실행되어도 동일한 결과가 나올 수 있게** 해야 한다
+- 테스트하기 전에 테스트 실행에 문제가 되지 않는 상태를 만들어주는 것이 더 좋다
+- DB 에 남은 데이터와 같이, **외부 환경에 영향을 받지 말아야 하며**, 테스트 실행 순서를 변경해도 동일한 결과가 보장되어야 한다.
