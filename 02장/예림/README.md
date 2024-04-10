@@ -261,6 +261,7 @@ public static void main(String[] args) {
 
 - deleteAll 추가
 	```java
+ 	// 2-7. deleteAll 메서드
 	public void deleteAll() throws SQLException {
 		Connection c = dataSource.getConnection();
 		PreparedStatement ps = c.prepareStatement("delete from users");
@@ -274,6 +275,7 @@ public static void main(String[] args) {
 - getCount()
   - USER 테이블의 레코드 개수를 돌려준다.
   ```java
+  // 2-8. getCount() 메서드
 	public int getCount() throws SQLException {
 		Connection c = dataSource.getConnection();
 		PreparedStatement ps = c.prepareStatement("select count(*) from users");
@@ -290,4 +292,54 @@ public static void main(String[] args) {
 	}
   ```
 
+#### deleteAll과 getCount()의 테스트
+- deleteAll()과 getCount()는 자동화돼서 반복적으로 실행 가능한 테스트 방법은 아니다.
+- deleteAll()을 테스트가 시작될 떄 실행해보자.
+- deleteAll()을 검증하기 위해 getCount()를 이용하자. 기대한대로 작동한다면 레코드의 개수가 0이 나와야 한다.
+- getCount()를 검증하기 위해서는 add() 메서드 실행 후 레코드의 개수가 0에서 1이 되었는지 확인해보자.
+
+```java
+// 2-9. deleteAll()과 getCount()가 추가된 addAndGet() 테스트
+@Test
+public void addAndGet() throws SQLException {
+	ApplicationContext applicationContext = new GenericXmlApplicationContext("spring/applicationContext.xml");
+	UserDao userDao = applicationContext.getBean(UserDao.class);
+	
+	// deleteAll(), getCount() 기능 동작 확인
+	userDao.deleteAll();
+	assertEquals(userDao.getCount(), 0);
+	
+	User userToAdd = new User();
+	userToAdd.setId("jinkyu1");
+	userToAdd.setName("진규");
+	userToAdd.setPassword("password");
+	userDao.add(userToAdd);
+
+	// 유저가 있을 때, getCount() 기능 동작 확인
+	assertEquals(userDao.getCount(), 1);
+	
+	User userToGet = userDao.get("jinkyu1");
+
+	// 유저가 제대로 등록되었는지 확인
+	assertEquals(userToAdd.getId(), userToGet.getId());
+	assertEquals(userToAdd.getName(), userToGet.getName());
+	assertEquals(userToAdd.getPassword(), userToGet.getPassword());
+	
+	// 유저가 있을 때, deleteAll(), getCount() 기능 동작 확인
+	userDao.deleteAll();
+	assertEquals(userDao.getCount(), 0);
+}
+```
+
+#### 동일한 결과를 보장하는 테스트
+- add()를 호출해 데이터를 넣었으므로 검증이 끝나면 deleteAll()을 실행해서 등록된 레코드를 삭제해주는 방법도 생각해볼 수 있다.
+- 그러나 이전에 어떤 작업을 하다가 테스트를 실행할지 알 수 없다.
+- 그보다는 테스트하기 전에 테스트 실행에 문제가 되지 않는 상태를 만들어주는 편이 더 낫다.
+- 테스트는 항상 일관성 있는 결과가 보장되어야 한다.
+
+
+### 2.3.3 포괄적인 테스트
+- 테스트를 안 만드는 것도 위험한 일이지만, 성의 없이 테스트를 만드는 바람에 문제가 있는 코드인데도 테스트가 성공하게 만드는 건 더 위험하다.
+
+- getCount()에 대한 좀 더 꼼꼼한 테스트를 만들어보자.
   
