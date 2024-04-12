@@ -341,5 +341,33 @@ public void addAndGet() throws SQLException {
 ### 2.3.3 포괄적인 테스트
 - 테스트를 안 만드는 것도 위험한 일이지만, 성의 없이 테스트를 만드는 바람에 문제가 있는 코드인데도 테스트가 성공하게 만드는 건 더 위험하다.
 
+#### getCount() 테스트
 - getCount()에 대한 좀 더 꼼꼼한 테스트를 만들어보자.
-  
+
+- 기존 테스트에서는 deleteAll()을 실행했을 때 테이블이 비어 있는 경우(0)와 add()를 한 번 호출한 뒤의 결과(1)뿐이다.
+- 두 개 이상의 레코드를 add() 했을 때는 getCount()의 실행 결과가 어떻게 될까?
+```java
+@Test
+public void count() throws SQLException {
+	ApplicationContext contex = new GenericXmlApplicationContext("applicationContext.xml");
+
+	UserDao dao = context.getBean("userDao", UserDao.class);
+	User user1 = new User("user1", "박성철", "springno1");
+	User user2 = new User("user2", "이길원", "springno2");
+	User user3 = new User("user3", "박범진", "springno3");
+
+	dao.deleteAll(); // USER 테이블의 데이터 모두 지우기
+	assertEquals(dao.getCount(), is(0)); // 레코드 개수가 0임을 확인
+	
+	dao.add(user1);
+	assertEquals(dao.getCount(), is(1));
+	
+	userDao.add(user2);
+	assertEquals(dao.getCount(), is(2));
+	
+	userDao.add(user3);
+	assertEquals(dao.getCount(), is(3));
+
+}
+```
+
