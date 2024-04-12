@@ -175,3 +175,11 @@ public class UserDaoTest {
 - JUnit 은 특정한 테스트 메소드의 실행 순서를 보장해주지 않는다.
 - 테스트 결과가 테스트 실행 순서에 영향을 받는다면 테스트가 잘못 만들어진 것이다.
 - 모든 테스트는 **실행 순서에 상관없이 독립적으로 항상 동일한 결과를 내야 한다**
+- JUnit 은 예외 발생 여부를 테스트할 수 있는 방법을 제공한다
+  - expected 엘리먼트에 **테스트 메소드 실행 중 발생하리라 기대하는 예외 클래스를 넣어준다**
+```java
+@Test(expected = EmptyResultDataAccessException.class)
+public void getUserFailure () throws SQLException {
+  ...
+}
+```
