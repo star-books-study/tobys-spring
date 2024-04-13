@@ -370,4 +370,54 @@ public void count() throws SQLException {
 
 }
 ```
+- 테스트는 순서에 영향받아선 안된다.
+- 두 개의 테스트가 어떤 순서로 실행될지는 알 수 없다는 것이다. (JUnit은 특정한 테스트 메소드의 실행 순서를 보장해주지 않는다.)
+- 테스트의 결과가 테스트 실행 순서에 영향을 받는다면 테스트를 잘못 만든 것이다.
+#### addAndGet() 테스트 보완
+```java
+@Test
+    @DisplayName("회원 추가 및 불러오기")
+    public void addAndGet() throws SQLException {
+        ApplicationContext applicationContext = new GenericXmlApplicationContext("spring/applicationContext.xml");
+        UserDao userDao = applicationContext.getBean(UserDao.class);
 
+        // `deleteAll()`, `getCount()` 기능 동작 확인
+        userDao.deleteAll();
+        assertEquals(userDao.getCount(), 0);
+
+        User user1 = new User();
+        user1.setId("jinkyu1");
+        user1.setName("진규");
+        user1.setPassword("password");
+        userDao.add(user1);
+        // 유저가 있을 때, `getCount()` 기능 동작 확인
+        assertEquals(userDao.getCount(), 1);
+
+        User user2 = new User();
+        user2.setId("jake2");
+        user2.setName("제이크");
+        user2.setPassword("password");
+        userDao.add(user2);
+        // 유저가 있을 때, `getCount()` 기능 동작 확인 2
+        assertEquals(userDao.getCount(), 2);
+
+        User user1Get = userDao.get("jinkyu1");
+        // 유저가 제대로 불러와지는지 확인
+        assertEquals(user1.getId(), user1Get.getId());
+        assertEquals(user1.getName(), user1Get.getName());
+        assertEquals(user1.getPassword(), user1Get.getPassword());
+
+        User user2Get = userDao.get("jake2");
+        // 항상 같은 유저를 불러오는 것은 아닌지, 유저가 제대로 불러와지는지 확인
+        assertEquals(user2.getId(), user2Get.getId());
+        assertEquals(user2.getName(), user2Get.getName());
+        assertEquals(user2.getPassword(), user2Get.getPassword());
+
+        // 유저가 있을 때, `deleteAll()`, `getCount()` 기능 동작 확인
+        userDao.deleteAll();
+        assertEquals(userDao.getCount(), 0);
+    }
+```
+- id를 조건으로 해서 사용자를 검색하는 기능을 가진 get()에 대한 테스트는 조금 부족한 감이 있다.
+
+- get()이 파라미터로 주어진 id에 해당하는 사용자를 가져온 것인지, 그냥 아무거나 가져온 것인지 테스트에서 검증하지는 못했다.
