@@ -374,50 +374,209 @@ public void count() throws SQLException {
 - 두 개의 테스트가 어떤 순서로 실행될지는 알 수 없다는 것이다. (JUnit은 특정한 테스트 메소드의 실행 순서를 보장해주지 않는다.)
 - 테스트의 결과가 테스트 실행 순서에 영향을 받는다면 테스트를 잘못 만든 것이다.
 #### addAndGet() 테스트 보완
+- get()이 파라미터로 주어진 id에 해당하는 사용자를 가져온 것인지, 그냥 아무거나 가져온 것인지 테스트에서 검증하지는 못했다.
+- User를 하나 더 추가해서 두 개의 User를 add()하고, 각 User의 id를 파라미터로 전달해서 get()을 실행하도록 만들자.
+
 ```java
 @Test
-    @DisplayName("회원 추가 및 불러오기")
-    public void addAndGet() throws SQLException {
-        ApplicationContext applicationContext = new GenericXmlApplicationContext("spring/applicationContext.xml");
-        UserDao userDao = applicationContext.getBean(UserDao.class);
+public void addAndGet() throws SQLException {
+	..
+	UserDao dao = applicationContext.getBean("userDao", UserDao.class);
+	
+	User user1 = new User("gyumee", "박성철", "springno1");
+	User user2 = new User("yel-m", "정예림", "springno2");
 
-        // `deleteAll()`, `getCount()` 기능 동작 확인
-        userDao.deleteAll();
-        assertEquals(userDao.getCount(), 0);
+	dao.deleteAll();
+	assertThat(dao.getCount(), is(0));
 
-        User user1 = new User();
-        user1.setId("jinkyu1");
-        user1.setName("진규");
-        user1.setPassword("password");
-        userDao.add(user1);
-        // 유저가 있을 때, `getCount()` 기능 동작 확인
-        assertEquals(userDao.getCount(), 1);
+	dao.add(user1);
+	dao.add(user2);
+	assertThat(dao.getCount(), is(2));
 
-        User user2 = new User();
-        user2.setId("jake2");
-        user2.setName("제이크");
-        user2.setPassword("password");
-        userDao.add(user2);
-        // 유저가 있을 때, `getCount()` 기능 동작 확인 2
-        assertEquals(userDao.getCount(), 2);
+	User userget1 = dao.get(user1.getId());
+	assertThat(userget1.getName(), is(user1.getName());
+	assertThat(userget1.getPassword(), is(user1.getPassword());
+	
+	User userget2 = dao.get(user1.getId());
+	assertThat(userget2.getName(), is(user2.getName());
+	assertThat(userget2.getPassword(), is(user2.getPassword());
+}
+```
+#### get() 예외 조건에 대한 테스트
+- get() 메소드에 전달된 id 값에 해당하는 사용자 정보가 없을 때
+	- `null`과 같은 특별한 값을 리턴한다
+	- id에 해당하는 정보를 찾을 수 없다고 예외를 던진다
+- 각기 장단점이 있다. 여기서는 후자의 방법을 써보자.
 
-        User user1Get = userDao.get("jinkyu1");
-        // 유저가 제대로 불러와지는지 확인
-        assertEquals(user1.getId(), user1Get.getId());
-        assertEquals(user1.getName(), user1Get.getName());
-        assertEquals(user1.getPassword(), user1Get.getPassword());
+- 테스트 진행 중에 특정 예외가 던져지면 테스트가 성공한 것이고, 예외가 던져지지 않고 정상적으로 작업을 마치면 테스트가 실패했다고 판단해야 한다.
 
-        User user2Get = userDao.get("jake2");
-        // 항상 같은 유저를 불러오는 것은 아닌지, 유저가 제대로 불러와지는지 확인
-        assertEquals(user2.getId(), user2Get.getId());
-        assertEquals(user2.getName(), user2Get.getName());
-        assertEquals(user2.getPassword(), user2Get.getPassword());
+- 문제는 예외 발생 여부는 메소드를 실행해서 리턴 값을 비교하는 방법으로 확인할 수 없다는 점이다. 이런 경우를 위해 JUnit은 특별한 방법을 제공해준다.
 
-        // 유저가 있을 때, `deleteAll()`, `getCount()` 기능 동작 확인
-        userDao.deleteAll();
-        assertEquals(userDao.getCount(), 0);
+```java
+@Test(expected=EmptyResultDataAccessException.class)
+public void getUserFailure() throws SQLException {
+	ApplicationContext context = new GenericXmlApplicationContext("applicationContext.xml");
+
+	UserDao dao = context.getBean("userDao", UserDao.class);
+	dao.deleteAll();
+	assertThat(dao.getCount(), is(0));
+
+	dao.get("unknown_id"); // 이 메서드 실행 중에 예외가 발생해야 한다. 예외가 발생하지 않으면 테스트가 실패한다.
+}
+```
+
+- `@Test`에 `expected`를 추가해놓으면
+	- 정상적으로 테스트 메소드를 마치면 테스트가 실패하고,
+	- expected에서 지정한 예외가 던져지면 테스트가 성공한다.
+- 예외가 반드시 발생해야 하는 경우를 테스트하고 싶을 때 유용하게 쓸수 있다.
+- 그런데 이 테스트를 실행시키면 테스트는 실패한다.
+  - `get()` 메서드에서 `rs.next()`를 실행시킬 때 가져올 로우가 없다는 SQLException이 발생할 것이다.
+
+
+#### 테스트를 성공시키기 위한 코드의 수정
+
+- 이제부터 할 일은 이 테스트가 성공하도록 get() 메소드 코드를 수정하는 것이다.
+
+```java
+public User get(String id) throws SQLException {
+        ...
+	ResultSet rs = ps.executeQuery();
+        
+        User user = null; // User는 null 상태로 초기화해놓는다.
+
+	// id를 조건으로 한 쿼리의 결과가 있으면 User 오브젝트를 만들고 값을 넣어준다.
+        if(rs.next()){  
+            user = new User();
+            user.setId(rs.getString("id"));
+            user.setName(rs.getString("name"));
+            user.setPassword(rs.getString("password"));
+        }
+
+        rs.close();
+        ps.close();
+        c.close();
+
+	// 결과가 없으면 User는 null 상태 그대로일 것이다. 이를 확인해서 예외를 던져준다.
+        **if(user == null) throw new EmptyResultDataAccessException(1);** 
+
+        return user;
     }
 ```
-- id를 조건으로 해서 사용자를 검색하는 기능을 가진 get()에 대한 테스트는 조금 부족한 감이 있다.
 
-- get()이 파라미터로 주어진 id에 해당하는 사용자를 가져온 것인지, 그냥 아무거나 가져온 것인지 테스트에서 검증하지는 못했다.
+#### 포괄적인 테스트
+- 이렇게 DAO의 메서드에 대한 포괄적인 테스트를 만들어두는 편이 훨씬 안전하고 유용하다.
+- 개발자가 테스트를 직접 만들 떄 자주 하는 실수가 성공하는 테스트만 골라서 만드는 것이다. 
+- 스프링의 창시자인 로드 존슨은 항상 네거티브 테스트를 먼저 만들라는 조언을 했다.
+
+- **테스트를 작성할 때 부정적인 케이스를 먼저 만드는 습관을 들이자!**
+
+- get() 메소드의 경우
+
+	- 존재하지 않는 id가 주어졌을 때는 어떻게 반응할지를 먼저 결정하고, 이를 확인할 수 있는 테스트를 먼저 만들어야 한다.
+
+### 2.3.4 테스트가 이끄는 개발
+- 많은 전문적인 개발자가 테스트를 먼저 만들어 테스트가 실패하는 것을 보고 나서 코딩하는 방법을 개발 방법을 적극적으로 사용하고 있다.
+
+#### 기능설계를 위한 테스트
+- getUserFailure() 테스트 코드의 내용을 정리해보면 다음과 같다.
+
+|    | 단계   | 내용             | 코드                  |
+-----|------|----------------|----------------------|
+| 조건  | 어떤 조건을 가지고 | 가져올 사용자 정보가 존재하지 않는 경우에 | dao.deleteAl(); assertThat(dao.getCount(), is(0)); |
+| 행위 | 무엇을 할 때 | 존재하지 않는 id로 get()을 실행하면 | get("unknown_id"); |
+| 결과 | 어떤 결과가 나온다. | 특별한 예외가 던져진다 | @Test(expected=EmptyResultDataAccessException.calss) |
+
+
+- 테스트 코드는 마치 잘 작성된 하나의 기능정의서처럼 보인다.
+- 보통 기능설계, 구현, 테스트라는 일반적인 개발 흐름의 기능설계에 해당하는 부분을 테스트 코드가 일부분 담당하고 있다.
+
+#### 테스트 주도 개발(TDD, Test Driven Development)
+
+- 테스트 코드를 먼저 만들고, 테스트를 성공하게 해주는 코드를 작성하는 방식의 개발 방식.
+만들고자 하는 기능의 내용을 담고 있으면서(기능 설계) 만들어진 코드를 검증도 해줄 수 있다.
+장점
+
+- 테스트를 먼저 만들고 그 테스트가 성공하도록 하는 코드만 만드는 식으로 진행하기 때문에 테스트를 빼먹지 않고 꼼꼼하게 만들어낼 수 있다.
+- 테스트를 작성하는 시간과 애플리케이션 코드를 작성하는 시간의 간격이 짧아진다. 이미 테스트를 만들어뒀기 때문에 코드를 작성하면 바로바로 테스트를 실행해볼 수 있기 때문이다. 그 덕분에 코드에 대한 피드백을 매우 빠르게 받을 수 있게 된다.
+- 매번 테스트가 성공하는 것을 보면서 작성한 코드에 대한 확신을 가질 수 있어, 가벼운 마음으로 다음 단계로 넘어갈 수가 있다. 자신감과 마음의 여유가 생긴다.
+- TDD에서는 테스트 작성하고 이를 성공시키는 코드를 만드는 작업의 주기를 가능한 한 짧게 가져가도록 권장한다.
+
+
+- 과거 개발자들은 엔터프라이즈 애플리케이션의 테스트를 만들기가 매우 어렵다고 생각해 테스트 코드를 짜지 않았다.
+- 하지만 스프링은 테스트하기 편리한 구조의 애플리케이션을 만들게 도와줄 뿐만 아니라, 엔터프라이즈 애플리케이션 테스트를 빠르고 쉽게 작성할 수 있는 매우 편리한 기능을 많이 제공하므로 테스트를 하자!
+
+### 2.3.5 테스트 코드 개선
+- 테스트 코드 자체가 이미 자신에 대한 테스트이기 때문에 테스트 결과가 일정하게 유지된다면 얼마든지 리팩토링을 해도 좋다.
+
+
+#### @Before
+- UserDaoTest에서 스프링의 애플리케이션 컨텍스트를 만드는 부분과 컨텍스트에서 UserDao를 가져오는 부분이 반복된다.
+- 반복적으로 등장하는 앞의 코드를 제거하고 setUp()에 넣어주고, dao 변수를 테스트 메서드에서 접근할 수 있도록 인스턴스 변수로 변경한다 마지막으로 setUp() 메서드에 @Before이라는 애노테이션을 추가한다.
+- @Before : Junit에서 제공하는 애노테이션. @Test 메서드가 실행되기 전에 먼저 실행돼야 하는 메서드를 정의한다.
+
+```java
+// 2-15. 중복된 코드를 제거한 UserDaoTest
+import org.junit.Before;
+...
+public class UserDaoTest {
+	private UserDao dao; // setUp() 메서드에서 만드는 오브젝트를 테스트 메서드에서 사용할 수 있도록 인스턴스 변수로 선언
+
+	// 테스트 메서드에 반복적으로 나타났던 코드를 제거하고 별도의 메서드로 옮긴다.
+	@Before 
+	public void setUp() {
+		ApplicationContext = new GenericXmlApplicationContext("applicationContext.xml");
+		this.dao = context.getBean("userDao", userDao.class);
+	}
+	...
+
+	@Test
+	public void addAndGet() throws SQLException {
+		...
+	}
+
+	@Test(expected=EmptyResultDataAccessException.class)
+	public void addAndGet() throws SQLException {
+		...
+	}
+}
+```
+- JUnit이 하나의 테스트 클래스를 가져와 테스트를 수행하는 방식은 다음과 같다.
+
+	1. 테스트 클래스에서 @Test가 붙은 public이고 void형이며 파라미터가 없는 테스트 메소드를 모두 찾는다.
+	2. 테스트 클래스의 오브젝트를 하나 만든다.
+	3. @Before가 붙은 메소드가 있으면 실행한다.
+	4. @Test가 붙은 메소드를 하나 호출하고 테스트 결과를 저장해둔다.
+	5. @After가 붙은 메소드가 있으면 실행한다.
+	6. 나머지 테스트 메소드에 대해 2~5번을 반복한다.
+	7. 모든 테스트의 결과를 종합해서 돌려준다.
+	  <img width="406" alt="스크린샷 2024-04-14 오후 12 05 45" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/e572c5af-583f-4fb2-b9c9-65e9ce19510f">
+
+- 보통 하나의 테스트 클래스 안에 있는 테스트 메소드들은 공통적인 준비 작업과 정리 작업이 필요한 경우가 많다.
+- 이런 작업들을 @Before, @After가 붙은 메소드에 넣어두면 JUnit이 자동으로 메소드를 실행해주니 매우 편리하다.
+- 각 테스트 메소드에서 직접 setUp()과 같은 메소드를 호출할 필요도 없다.
+
+- e대신 @Before나 @After 메소드를 테스트 메소드에서 직접 호출하지 않기 때문에 서로 주고받을 정보나 오브젝트가 있다면 인스턴스 변수를 이용해야 한다.
+- UserDaoTest에서는 스프링 컨테이너에서 가져온 UserDao 오브젝트를 인스턴스 변수 dao에 저장해뒀다가, 각 테스트 메소드에서 사용하게 만들었다.
+- 꼭 기억해야할 사항은 각 **테스트 메서드를 실행할 때마다 테스트 클래스의 오브젝트를 새로 만든다**는 점이다.
+- 왜 테스트 메소드를 실행할 때마다 새로운 오브젝트를 만드는 것일까? 그냥 테스트 클래스마다 하나의 오브젝트만 만들어놓고 사용하는 편이 성능도 낫고 더 효율적이지 않을까?
+
+	- JUnit 개발자는 각 테스트가 서로 영향을 주지 않고 독립적으로 실행됨을 확실히 보장해주기 위해 매번 새로운 오브젝트를 만들게 했다.
+	- 덕분에 인스턴스 변수도 부담 없이 사용할 수 있다. 어차피 다음 테스트 메소드가 실행될 때는 새로운 오브젝트가 만들어져서 다 초기화될 것이다.
+ 
+#### 픽스처
+
+- 테스트를 수행하는 데 필요한 정보나 오브젝트를 fixture라고 한다.
+
+- 픽스처는 여러 테스트에서 반복적으로 사용되기 때문에 `@Before` 메소드를 이용해 생성해두면 편리하다.
+- UserDaoTest에서라면 dao가 대표적인 픽스처이다.
+- add() 메서드에 전달하는 User 오브젝트들도 픽스처라고 볼 수 있다.
+  - 이 부분에서 중복된 코드를 제거하기 위해 @Before 메서드로 추출해보자.
+	```java
+	@Before 
+	public void setUp() {
+		...
+		this.user1 = new User("1233", "박성철", "springno1");
+		this.user2 = new User("1111", "정예림", "springno2");
+		this.user3 = new User("1e3334", "박범진", "springno3");
+	}
+ 	```
