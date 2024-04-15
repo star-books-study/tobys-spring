@@ -580,3 +580,41 @@ public class UserDaoTest {
 		this.user3 = new User("1e3334", "박범진", "springno3");
 	}
  	```
+
+## 2.4 스프링 테스트 적용
+- 찜찜한 부분 : @Before 메서드가 테스트 메서드 개수만큼 반복 -> 어플리케이션 컨텍스트도 여러 번 생성
+- 빈이 많아지고 복잡해지면 애플리케이션 컨텍스트 생성해 시간이 걸릴 수 있다.
+- 테스트를 마칠 때마다 애플리케이션 컨텍스트 내의 빈이 할당한 리소스 등을 깔끔하게 정리해주지 않으면 다음 테스트에서 새로운 애플리케이션 컨텍스트가 만들어지면서 문제를 일으킬 수 있다.
+
+- 테스트는 일관성있는 실행 결과를 보장해야 하고, 테스트의 실행 순서가 결과에 영향을 미치지 않아야 한다.
+- 다행히도 애플리케이션 컨텍스트는 초기화되고 나면 내부의 상태가 바뀌는 일은 거의 없다. 왜냐하면 빈이 싱글톤으로 만들어졌기 때문에 상태를 갖지 않기 때문이다.
+
+- UserDao 빈을 가져다가 add(), get()을 사용한다고 해서 UserDao 빈의 상태가 바뀌진 않는다. 
+- 애플리케이션 컨텍스트는 특별한 경우가 아니면 여러 테스트가 공유해서 사용해도 된다.
+
+- 여러 테스트가 함께 참조한 애플리케이션 컨텍스트를 오브젝트 레벨이 아닌 스태틱 필드에 저장해두면 어떨까?
+- JUnit은 테스트 클래스 전체에 걸쳐 딱 한 번만 실행되는 `@BeforeClass` 스태틱 메서드를 지원한다.
+
+### 2.4.1 테스트에서 애플리케이션 컨텍스트 관리
+- 스프링은 JUnit을 이용하는 테스트 컨텍스트 프레임워크를 제공한다.
+- 애플리케이션 컨텍스트를 만들어서 모든 테스트가 공유하게 할 수 있다.
+
+#### 스프링 테스트 컨텍스트 프레임워크 적용
+
+```java
+@RunWith(SpringJUnit4ClassRunnder.class) // 스프링의 테스트 컨텍스트 프레임워크의 JUnit 확장 기능 지정
+@ContextConfiguration(locations="/applicationContext.xml // 테스트 컨텍스트가 자동으로 만들어줄 애플리케이션 컨텍스트의 위치 지정
+public class UserDaoTest {
+	@Autowired ApplicationContext applicationContext; // 테스트 오브젝트가 만들어지고 나면 스프링 컨텍스트에 자동으로 값이 주입된다.
+	UserDao userDao;
+	
+	@Before
+	public void setUp() {
+		this.userDao = this.applicationContext.getBean("userDao", UserDao.class);
+		...
+	}
+```
+- context 변수에 애플리케이션 컨텍스트가 들어있다. 스프링 컨텍스트 프레임워크의 JUnit 확장기능의 마법 🧙‍♀️
+
+- `@RunWith`는 JUnit5에서 테스트 클래스를 확장할 때 쓰이는 애노테이션이다.
+- `@ContextConfiguration`은 자동으로 만들어줄 애플리케이션 컨텍스트의 설정 파일 위치를 지정한 것이다. 
