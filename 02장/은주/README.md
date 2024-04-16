@@ -223,7 +223,7 @@ public void getUserFailure () throws SQLException {
 - 픽스처 : 테스트를 수행하는 데 필요한 정보나 오브젝트
   - 여러 테스트에서 반복적으로 사용되기 때문에 @Before 메소드를 이용해 생성해두면 편리하다.
 
-### 2.4. 스프링 테스트 적용
+## 2.4. 스프링 테스트 적용
 ```java
 public class UserDaoTest {
   private UserDao dao;
@@ -249,3 +249,30 @@ public class UserDaoTest {
 - 문제는 JUnit이 매번 테스트 클래스의 오브젝트를 새로 만든다는 점이다. 
   - 따라서 **여러 테스트가 함께 참조할 애플리케이션 컨텍스트를 오브젝트 레벨에 저장해두면 곤란하다.**
   - JUnit 은 테스트 클래스 전체에 걸쳐 딱 1번만 실행되는 @BeforeClass 스태틱 메소드를 지원하긴 하지만, 스프링이 직접 제공하는 애플리케이션 컨텍스트 테스트 지원 기능을 사용하는 것이 더 편하다
+
+### 2.4.1. 테스트를 위한 애플리케이션 컨텍스트 관리
+#### 스프링 테스트 컨텍스트 프레임워크 적용
+- 스프링은 **JUnit을 이용하는 테스트 컨텍스트 프레임워크를 제공**한다. 
+- 따라서 애플리케이션 컨텍스트를 만들어서 모든 테스트가 공유하게 할 수 있다.
+```java
+// @Runwith(SpringJUnit4ClassRunner.class) (JUnit4)
+@ExtendWith(SpringExtension.class) // (JUnit5)
+@ContextConfiguration(locations="/spring/applicationContext.xml")
+public class UserDaoTest {
+    @Autowired 
+    ApplicationContext applicationContext;
+
+    UserDao userDao;
+
+    @BeforeEach
+    public void setUp() {
+        this.userDao = this.applicationContext.getBean("userDao", UserDao.class);
+    }
+}
+```
+위와 같이 코드를 작성하면, spring-test 의존성이 테스트에서 사용할 ApplicationContext 하나를 만들고, 공유하도록 지정할 수 있다.
+
+- @RunWith는 JUnit 프레임워크의 테스트 실행 방법을 확장할 때 사용한다.
+  - SpringJUnit4ClassRunner라는 JUnit용 테스트 컨텍스트 프레임워크 확장 클래스를 지정해주면 **JUnit은 테스트가 사용할 애플리케이션 컨텍스트를 만들고 관리하는 작업** 을 해준다.
+- @ExtendWith는 JUnit5에서 테스트 클래스를 확장할 때 쓰이는 애노테이션이다.
+- @ContextConfiguration은 locations라는 엘리먼트를 통해 **ApplicationContext에 사용될 xml파일의 위치를 지정**해줄 수 있다.
