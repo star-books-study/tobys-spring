@@ -276,3 +276,17 @@ public class UserDaoTest {
   - SpringJUnit4ClassRunner라는 JUnit용 테스트 컨텍스트 프레임워크 확장 클래스를 지정해주면 **JUnit은 테스트가 사용할 애플리케이션 컨텍스트를 만들고 관리하는 작업** 을 해준다.
 - @ExtendWith는 JUnit5에서 테스트 클래스를 확장할 때 쓰이는 애노테이션이다.
 - @ContextConfiguration은 locations라는 엘리먼트를 통해 **ApplicationContext에 사용될 xml파일의 위치를 지정**해줄 수 있다.
+- 스프링의 JUnit 확장 기능은 **테스트 실행 전 딱 1번만 애플리케이션 컨텍스트를 만들어두고**, 테스트 오브젝트 생성마다 특별한 방법을 이용해 애플리케이션 컨텍스트를 테스트 오브젝트의 특정 필드에 주입하는 것이다.
+
+#### 테스트 클래스의 컨텍스트 공유
+- 하나의 테스트 클래스 내에서 애플리케이션 컨텍스트를 공유해주는 게 전부가 아니다.
+- 여러 개 테스트 클래스가 있을 때, `모두 같은 설정 파일을 가진` 애플리케이션 컨텍스트를 사용한다면, **테스트 클래스 사이에서도 애플리케이션 컨텍스트를 공유하게 해준다** 
+```java
+@Runwith(SpringJUnit4ClassRunner.class) 
+@ContextConfiguration(locations="/spring/applicationContext.xml")
+public class UserDaoTest { ... }
+
+@Runwith(SpringJUnit4ClassRunner.class) 
+@ContextConfiguration(locations="/spring/applicationContext.xml")
+public class GroupDaoTest { ... }
+```
