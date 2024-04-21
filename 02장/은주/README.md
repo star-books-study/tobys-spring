@@ -418,3 +418,118 @@ public class UserDaoTest {
   - 버그가 있어서 테스트가 실패하면 업그레이드 일정을 늦추거나, API 사용 방법에 변화가 발생한 경우라면 그에 맞춰서 애플리케이션 코드를 수정할 계획을 세울 수 있다.
 - 테스트 작성에 대한 좋은 훈련이 된다.
 - 새로운 기술을 공부하는 과정이 즐거워진다.
+
+### 2.5.2. 학습 테스트 예제
+#### JUnit 테스트 오브젝트 테스트
+- JUnit 은 테스트 메소드를 수행할 때마다 새로운 오브젝트를 만든다고 했는데, 이를 테스트하는 코드
+- 매 테스트 메소드에서 **현재 스태틱 변수에 담긴 오브젝트와 자신을 비교해서 같지 않음**을 확인
+```java
+public class JUnitTest {
+    static JUnitTest testObject;
+
+    @Test
+    public void test1() {
+        assertNotSame(testObject, this);
+        System.out.println("testObject = " + testObject);
+        System.out.println("this = " + this);
+    }
+
+    @Test
+    public void test2() {
+        assertNotSame(testObject, this);
+        System.out.println("testObject = " + testObject);
+        System.out.println("this = " + this);
+    }
+
+    @Test
+    public void test3() {
+        assertNotSame(testObject, this);
+        System.out.println("testObject = " + testObject);
+        System.out.println("this = " + this);
+    }
+}
+```
+
+- 위의 경우에는, 직전 테스트에서 만든 테스트 오브젝트와만 비교한다는 것이다
+- 3개의 테스트 오브젝트 중 어떤 것도 중복되지 않음을 확인하도록 검증 방법을 변경한다
+```java
+public class JUnitTest {
+    static Set<JUnitTest> testObjects = new HashSet<JUnitTest>();
+
+    @Test
+    public void test1() {
+        assertNotSame(testObject, this);
+        testObjects.add(this);
+    }
+
+    @Test
+    public void test2() {
+        assertNotSame(testObject, this);
+        testObjects.add(this);
+    }
+
+    @Test
+    public void test3() {
+        assertNotSame(testObject, this);
+        testObjects.add(this);
+    }
+}
+```
+
+#### 스프링 테스트 컨텍스트 테스트
+- 애플리케이션 컨텍스트가 테스트 개수에 상관없이 1개만 만들어지며, 모든 테스트에서 공유되는 지 확인해보자
+- 첫번째 테스트인 경우 null 이므로 null 체크하고, 그다음부터는 applicationContext 에 저장된 것이 현재의 context 와 같은지 비교
+```java
+@ExtendWith(SpringExtension.class) // (JUnit5)
+@ContextConfiguration(locations="/spring/applicationContext.xml")
+public class ApplicationContextTest {
+    @Autowired
+    ApplicationContext applicationContext;
+
+    static Set<ApplicationContext> applicationContexts = new HashSet<>();
+
+    @Test
+    public void test1() {
+        applicationContexts.add(applicationContext);
+        assertThat(applicationContext == null || applicationContext == this.applicationContext, is(true));
+        applicationContext = this.applicationContext;
+    }
+
+    @Test
+    public void test2() {
+        applicationContexts.add(applicationContext);
+        assertThat(applicationContext == null || applicationContext == this.applicationContext, is(true));
+        applicationContext = this.applicationContext;
+    }
+
+    @Test
+    public void test3() {
+        applicationContexts.add(applicationContext);
+        assertThat(applicationContext == null || applicationContext == this.applicationContext, is(true));
+        applicationContext = this.applicationContext;
+    }
+}
+```
+
+### 2.5.3. 버그 테스트
+- 코드에 오류가 있을 때 그 오류를 가장 잘 드러내줄 수 있는 테스트
+- 무턱대고 코드를 뒤져가며 수정하려고 하기 보다 먼저 버그테스트를 만드는 게 유용하다
+- 버그테스트는 일단 실패하도록 만들고, 버그테스트가 성공할 수 있게 애플리케이션 코드를 수정한다
+- 장점
+  - 테스트의 완성도를 높여준다
+    - 테스트를 만들면 불충분했던 테스트를 보완해준다.
+  - 버그의 내용을 명확하게 분석하게 해준다
+    - 버그를 좀 더 효과적으로 분석할 수 있다.
+    - 버그로 인해 발생할 수 있는 다른 오류를 함께 발견할 수도 있다.
+  - 기술적인 문제를 해결하는 데 도움이 된다
+    - 때로는 버그 원인이 무엇인지 정확하게 파악하기 힘들 때가 있는데, 동일한 문제가 발생하는 가장 단순한 코드와 그에 대한 버그 테스트를 만들어보면 도움이 된다.
+
+## 2.6 정리
+- 테스트는 자동화되고 빠르게 실행할 수 있어야 한다.
+- 테스트 결과는 일관성이 있어야한다. 환경이나 테스트 순서에 영향을 받으면 안 된다.
+- 테스트는 포괄적으로 작성하여 충분한 검증을 하자. 네거티브 테스트 먼저 작성하는 습관을 들이자.
+- 코드 작성과 테스트 수행의 간격이 짧을수록 효과적이다.
+- @BeforeEach, @AfterEach를 사용해서 테스트 메소드들의 공통 준비 작업과 정리 작업을 처리할 수 있다.
+- 동일한 설정 파일을 사용하는 테스트는 하나의 애플리케이션 컨텍스트를 공유한다.
+- @Autowired를 사용하면 컨텍스트의 빈을 테스트 오브젝트에 DI할 수 있다.
+- 오류가 발견되는 경우 버그 테스트를 만들어두면 유용하다.
