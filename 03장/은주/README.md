@@ -87,3 +87,7 @@ public void deleteAll() throws SQLException {
     }
 }
 ```
+
+## 3.2. 변하는 것과 변하지 않는 것
+### 3.2.1. JDBC try/catch/finally 코드의 문제점
+- 핵심은 변하지 않는, 그러나 많은 곳에서 중복되는 코드와 로직에 따라 자주 확장되고 자주 변하는 코드를 잘 분리해내는 것이다.
