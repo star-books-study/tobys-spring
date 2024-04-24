@@ -91,3 +91,41 @@ public void deleteAll() throws SQLException {
 ## 3.2. 변하는 것과 변하지 않는 것
 ### 3.2.1. JDBC try/catch/finally 코드의 문제점
 - 핵심은 변하지 않는, 그러나 많은 곳에서 중복되는 코드와 로직에 따라 자주 확장되고 자주 변하는 코드를 잘 분리해내는 것이다.
+
+```java
+public class UserDao {
+    public void add(User user) throws ClassNotFoundException, SQLException {
+		Connection c = null;
+
+		PreparedStatement ps = null;
+
+        try {
+            c = datasource.getConnection();
+            ps = c.prepareStatement("delete from users") // 이 부분만 변하는 부분 
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            if (ps != null) {
+                try {
+                    ps.close();
+                } catch (SQLException e) {
+
+                }
+            }
+            
+            if (c != null) {
+                try {
+                    c.close();
+                } catch (SQLException e) {
+
+                }
+            }
+        }
+	}
+```
+#### 템플릿 메소드 패턴의 적용
+- 템플릿 메소드 패턴 : `상속` 을 통해 기능을 확장해서 사용하기
+  - 변하지 않는 부분을 슈퍼클래스에, 변하는 부분을 `추상 메소드` 로 정의해서 서브클래스에서 오버라이드하여 새롭게 정의하여 쓰도록 함
+```java
+abstract protected PreparedStatement makeStatement(Connection c) throws SQLException;
+```
