@@ -90,6 +90,9 @@ public void deleteAll() throws SQLException {
 
 ## 3.2. 변하는 것과 변하지 않는 것
 ### 3.2.1. JDBC try/catch/finally 코드의 문제점
+- 복잡한 try/catch/finally 블록이 2중 중첩인데다 모든 메소드마다 반복된다.
+
+### 3.2.2. 분리와 재사용을 위한 디자인 패턴 적용
 - 핵심은 변하지 않는, 그러나 많은 곳에서 중복되는 코드와 로직에 따라 자주 확장되고 자주 변하는 코드를 잘 분리해내는 것이다.
 
 ```java
@@ -101,7 +104,7 @@ public class UserDao {
 
         try {
             c = datasource.getConnection();
-            ps = c.prepareStatement("delete from users") // 이 부분만 변하는 부분 
+            ps = c.prepareStatement("delete from users") // 이 부분만 변하는 부분 -> makeStatement 로 추출
         } catch (SQLException e) {
             throw e;
         } finally {
@@ -128,4 +131,85 @@ public class UserDao {
   - 변하지 않는 부분을 슈퍼클래스에, 변하는 부분을 `추상 메소드` 로 정의해서 서브클래스에서 오버라이드하여 새롭게 정의하여 쓰도록 함
 ```java
 abstract protected PreparedStatement makeStatement(Connection c) throws SQLException;
+
+public class UserDaoDeleteAll extends UserDao {
+    protected PreparedStatement makeStatement(Connection c) throws SQLException {
+        PreparedStatement ps = c.preparedStatement("delete from users");
+        return ps;
+    }
+}
 ```
+- UserDao 클래스의 기능을 확장하고 싶을 때마다 상속을 통해 자유롭게 확장 가능하며, 확장 때문에 기존의 상위 DAO 클래스에 불필요한 변화는 생기지 않는다.
+- 따라서 객체지향 설계의 핵심 원리인 개방 폐쇄 원칙(OCP)을 그럭저럭 지키는 구조를 만들어낼 수 있다.
+- 단점
+  - DAO 로직마다 상속을 통해 새로운 클래스를 만들어야 하는 단점이 있다.
+  - **확장 구조가 클래스 설계시점에 고정** 된다.
+    - 컴파일 시점에 PreparedStatement 를 담고 있는 서브 클래스와 try/catch/finally 블록간의 관계가 이미 결정되어 있으므로 **관계에 대한 유연성이 떨어진다**
+
+#### 전략 패턴의 적용
+- 전략 패턴
+  - 개방 폐쇄 원칙의 실현에도 가장 잘 들어맞는 패턴
+  - 자신의 기능 맥락(context) 에서, 필요에 따라 **변경이 필요한 알고리즘 (독립적인 책임으로 분리 가능한 기능)을 인터페이스를 통해 통째로 외부로 분리시키고, 이를 구현한 구체적인 알고리즘을 필요에 따라 바꿔서 사용** 할 수 있게 하는 디자인 패턴 -> 전략을 바꾼다! 라고 생각
+    - PreparedStatement 를 만들어주는 부분이 전략패턴에서 말하는 `전략`
+    - 인터페이스의 메소드를 통해 PreparedStatement 생성 전략을 호출해주면 된다
+```java
+public interface StatementStrategy {
+    PreparedStatement makePreparedStatement(Connection c) throws SQLException;
+}
+
+public class DeleteAllStatement implements StatementStrategy {
+    protected PreparedStatement makeStatement(Connection c) throws SQLException {
+        PreparedStatement ps = c.preparedStatement("delete from users");
+        return ps;
+    }
+}
+
+public void deleteAll() throws SQLException {
+    ...
+    try {
+        c = dataSource.getConnection();
+
+        StatementStrategy strategy = new DeleteAllStatement();  
+        //  전략 클래스가 DeleteAllStatement로 고정됨으로써 OCP 개방 원칙에 맞지 않게 된다.
+        ps = starategy.makePreparedStatement(c);
+
+        ps.executeUpdate();
+    } catch (SQLException e) {...}
+}
+```
+- 하지만 전략패턴은 필요에 따라 `컨텍스트는 그대로 유지` 하면서, 전략을 `바꿔 사용` 가능한데, 위의 코드는 이미 컨텍스트 내에서 전략 클래스가 고정되어 있어서 이상하다
+
+#### DI 적용을 위한 클라이언트/컨텍스트 분리
+- 전략 패턴에 따르면 Context가 **어떤 전략을 사용하게 할 것인가**는 Context를 사용하는 **앞단의 Client가 결정**하는 게 일반적이다.
+  - Client 가 구체적인 전략을 선택하고 오브젝트로 만들어 Context (변하지 않는 부분) 에 전달 
+  - Context 는 전달받은 Strategy 구현 클래스의 오브젝트를 사용
+![alt text](image.png)
+- 컨텍스트에 해당하는 부분을 별도 메소드로 독립시킨다.
+- 클라이언트는 전략클래스의 오브젝트를 컨텍스트 메소드 (jdbcContextWithStatementStrategy) 호출하며 전달해야 하므로, 전략 인터페이스 (StatementStrategy) 를 컨텍스트 메소드 파라미터로 지정한다.
+```java
+public void jdbcContextWithStatementStrategy(StatementStrategy stmt) throws SQLException {
+    Connection c = null;
+    PreparedStatement ps = null;
+
+    try {
+        c = dataSource.getConnection();
+        ps = stmt.makePreparedStatement(c);
+        ps.executeUpdate();
+    } catch (SQLException e) {
+        throw e;
+    } finally {
+        if (ps != null) { try { ps.close(); } catch (SQLException e) }
+        if (c != null) { try { c.close(); } catch (SQLException e) }
+    }
+}
+```
+- 클라이언트로부터 StatementStrategy 타입의 전략 오브젝트를 제공받고 try/catch/finally 구조로 만들어진 컨텍스트 내에서 작업을 수행한다.
+- **클라이언트에서는 전략 오브젝트를 생성하고, 컨텍스트를 호출한다**
+```java
+public void deleteAll() throws SQLException {
+    StatementStrategy st = new DeleteAllStatement();    //  선정한 전략 클래스의 오브젝트 생성
+    jdbcContextWithStatementStrategy(st);               //  컨텍스트 호출. 전략 오브젝트 전
+}
+```
+- 클라이언트가 컨텍스트가 사용할 전략을 정해서 결정한다는 점에서 DI 구조로 이해할 수도 있다.
+- DI 의 가장 중요한 개념은 제 3자 (Client) 의 도움을 통해 두 오브젝트 (전략과 컨텍스트 메소드) 사이의 유연한 관계가 설정되도록 만드는 것이다.
