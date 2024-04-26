@@ -187,6 +187,13 @@ public void deleteAll() throws SQLException {
 - 컨텍스트에 해당하는 부분을 별도 메소드로 독립시킨다.
 - 클라이언트는 전략클래스의 오브젝트를 컨텍스트 메소드 (jdbcContextWithStatementStrategy) 호출하며 전달해야 하므로, 전략 인터페이스 (StatementStrategy) 를 컨텍스트 메소드 파라미터로 지정한다.
 ```java
+public class DeleteAllStatement implements StatementStrategy {
+    protected PreparedStatement makeStatement(Connection c) throws SQLException {
+        PreparedStatement ps = c.preparedStatement("delete from users");
+        return ps;
+    }
+}
+
 public void jdbcContextWithStatementStrategy(StatementStrategy stmt) throws SQLException {
     Connection c = null;
     PreparedStatement ps = null;
@@ -213,3 +220,11 @@ public void deleteAll() throws SQLException {
 ```
 - 클라이언트가 컨텍스트가 사용할 전략을 정해서 결정한다는 점에서 DI 구조로 이해할 수도 있다.
 - DI 의 가장 중요한 개념은 제 3자 (Client) 의 도움을 통해 두 오브젝트 (전략과 컨텍스트 메소드) 사이의 유연한 관계가 설정되도록 만드는 것이다.
+
+## 3.3. JDBC 전략 패턴의 최적화
+- 컨텍스트는 PreparedStatement 를 실행하는 `JDBC 작업 흐름` 이고, 전략은 `PreparedStatement 를 생성`하는 것이다.
+
+### 3.3.2. 전략과 클라이언트의 동거
+- 이전의 개선된 코드가 가진 2가지 문제점
+  - DAO 메소드마다 새로운 StatementStrategy 구현 클래스를 만들어야 한다.
+  - DAO 메소드에서 StatementStrategy에 전달할 User와 같은 부가적인 정보가 있는 경우, 이를 전달하고 저장해 둘 생성자와 인스턴스 변수를 번거롭게 만들어야 한다.
