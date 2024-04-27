@@ -215,7 +215,7 @@ public void jdbcContextWithStatementStrategy(StatementStrategy stmt) throws SQLE
 ```java
 public void deleteAll() throws SQLException {
     StatementStrategy st = new DeleteAllStatement();    //  선정한 전략 클래스의 오브젝트 생성
-    jdbcContextWithStatementStrategy(st);               //  컨텍스트 호출. 전략 오브젝트 전
+    jdbcContextWithStatementStrategy(st);               //  컨텍스트 호출. 전략 오브젝트 주입
 }
 ```
 - 클라이언트가 컨텍스트가 사용할 전략을 정해서 결정한다는 점에서 DI 구조로 이해할 수도 있다.
@@ -228,3 +228,198 @@ public void deleteAll() throws SQLException {
 - 이전의 개선된 코드가 가진 2가지 문제점
   - DAO 메소드마다 새로운 StatementStrategy 구현 클래스를 만들어야 한다.
   - DAO 메소드에서 StatementStrategy에 전달할 User와 같은 부가적인 정보가 있는 경우, 이를 전달하고 저장해 둘 생성자와 인스턴스 변수를 번거롭게 만들어야 한다.
+```java
+public class UserDao {
+	private ConnectionMaker connectionMaker;
+	
+	public UserDao() {
+		this.connectionMaker = new DConnectionMaker();
+	}
+
+	public void add(User user) throws ClassNotFoundException, SQLException {
+		Connection c = this.connectionMaker.getConnection();
+	}
+```
+- StatementStrategy 전략 클래스를 매번 독립된 파일로 만들지 말고 **UserDao 클래스 안에 내부 클래스로 정의**해버리면 클래스 파일이 많아지는 문제는 해결할 수 있다.
+```java
+public class UserDao {
+	private ConnectionMaker connectionMaker;
+	
+	public UserDao() {
+		this.connectionMaker = new DConnectionMaker();
+	}
+
+	public void add(User user) throws ClassNotFoundException, SQLException {
+        class AddStatement implements StatementStrategy {   //  add() 메소드 내부에 선언된 로컬 클래스
+            User user;
+
+            public AddStatement(User user) {
+                this.user = user;
+            }
+
+            public PreparedStatement makePreparedStatement(Connection c) throws SQLException {
+                PreparedStatement ps = c.prepareStatement("insert into users(id, name, password) values(?,?,?)");
+                ps.setString(1, user.getId());
+                ps.setString(2, user.getName();
+                ...
+                return ps;
+            }
+        }
+        StatementStrategy st = new AddStatement(user);
+        jdbcContextWithStatementStrategy(st);
+	}  
+}
+```
+- 로컬 클래스로 만들어두니, 내부 클래스의 특징을 이용해 **자신이 정의된 메소드의 로컬 변수에 직접 접근 가능**하다.
+  - 즉, add() 메소드 내에 AddStatement 클래스를 정의하면 번거롭게 생성자를 통해 User 오브젝트를 전달해줄 필요가 없다.
+  - 따라서 AddStatement 클래스가 정의된 add 메소드의 user 라는 메소드 파라미터 (일종의 로컬변수) 에 접근할 수 있다.
+  - 다만, **내부 클래스에서 외부 변수 사용할 때는 외부 변수를 반드시 final 로 선언** 해줘야 한다.
+```java
+public class UserDao {
+	private ConnectionMaker connectionMaker;
+	
+	public UserDao() {
+		this.connectionMaker = new DConnectionMaker();
+	}
+
+	public void add(final User user) throws ClassNotFoundException, SQLException {
+        class AddStatement implements StatementStrategy {   
+            public PreparedStatement makePreparedStatement(Connection c) throws SQLException {
+                PreparedStatement ps = c.prepareStatement("insert into users(id, name, password) values(?,?,?)");
+                ps.setString(1, user.getId()); // 내부 클래스에서 외부의 메소드 로컬 변수에 직접 접근 가능
+                ps.setString(2, user.getName();
+                ...
+                return ps;
+            }
+        }
+        StatementStrategy st = new AddStatement(); // 생성자 파라미터로 user 전달 불필요
+        jdbcContextWithStatementStrategy(st);
+	}  
+}
+```
+
+#### 익명 내부 클래스
+- AddStatement 클래스는 add() 메소드에서만 사용할 용도로 만들어져서, 간결하게 클래스명도 제거할 수 있다.
+- 클래스 선언과 동시에 오브젝트를 생성한다.
+- 클래스를 **재사용할 필요가 없고**, 구현한 인터페이스 타입으로만 사용할 경우에 유용하다
+`new 인터페이스 이름() { 클래스 본문 };`
+```java
+// AS-IS
+class AddStatement implements StatementStrategy {   
+    public PreparedStatement makePreparedStatement(Connection c) throws SQLException {
+        PreparedStatement ps = c.prepareStatement("insert into users(id, name, password) values(?,?,?)");
+        ps.setString(1, user.getId()); // 내부 클래스에서 외부의 메소드 로컬 변수에 직접 접근 가능
+        ps.setString(2, user.getName();
+        ...
+        return ps;
+    }
+}
+StatementStrategy st = new AddStatement(); // 생성자 파라미터로 user 전달 불필요
+jdbcContextWithStatementStrategy(st);
+
+// TO-BE
+StatementStrategy st = new StatementStrategy() {
+    public PreparedStatement makePreparedStatement(Connection c) throws SQLException {
+        PreparedStatement ps = c.prepareStatement("insert into users(id, name, password) values(?,?,?)");
+        ps.setString(1, user.getId()); 
+        ps.setString(2, user.getName();
+        ...
+        return ps;
+    }
+}
+```
+- 위와 같이 만들어진 익명 내부 클래스 오브젝트는 딱 1번만 사용하기에 변수에 담지말고, jdbcContextWithStatementStrategy() 메소드 파라미터에서 바로 생성하는 게 낫다.
+```java
+public void add(final User user) throws SQLException {
+    jdbcContextWithStatementStrategy(
+        new StatementStrategy() {
+            public PreparedStatement makePreparedStatement(Connection c) throws SQLException {
+                PreparedStatement ps = c.prepareStatement("insert into users(id, name, password) values(?,?,?)");
+    
+                ps.setString(1, user.getId());
+                ps.setString(2, user.getName();
+                ...
+                return ps;
+            }
+        }
+    );
+}
+```
+
+## 3.4. 컨텍스트와 DI
+### 3.4.1. JdbcContext 의 분리
+- 전략 패턴의 구조로 보았을 때,
+  - UserDao 의 메소드 (add 메소드) : `클라이언트`
+  - 익명 내부 클래스로 만들어진 StatementStrategy : `전략`
+  - UserDao 내의 PreparedStatement 를 실행하는 기능을 수행하는 jdbcContextWithStatementStrategy : `컨텍스트 메소드`
+  - 컨텍스트 메소드는 JDBC 일반적인 흐름을 담고 있으므로 다른 DAO 에서도 사용할 수 있게 분리해보자
+
+#### 클래스 분리
+- JdbcContext 라는 클래스를 만들고, jdbcContextWithStatementStrategy 메소드를 이름을 변경하여 옮겨 둔다
+```java
+// AS-IS 
+public void jdbcContextWithStatementStrategy(StatementStrategy stmt) throws SQLException {
+    Connection c = null;
+    PreparedStatement ps = null;
+
+    try {
+        c = dataSource.getConnection();
+        ps = stmt.makePreparedStatement(c);
+        ps.executeUpdate();
+    } catch (SQLException e) {
+        throw e;
+    } finally {
+        if (ps != null) { try { ps.close(); } catch (SQLException e) }
+        if (c != null) { try { c.close(); } catch (SQLException e) }
+    }
+}
+
+// TO-BE
+public class JdbcContext {
+    private DataSource dataSource;
+
+    public void setDataSource(DataSource dataSource) {  //  DataSource 타입 빈을 DI 받을 수 있게 준비
+        this.dataSource = dataSource;
+    }
+
+    public void workWithStatementStrategy(StatementStrategy stmt) throws SQLException {
+        Connection c = null;
+        PreparedStatement ps = null;
+
+        try {...} 
+        catch (SQLException e) {...}
+        finally {...}
+    }
+}
+```
+- UserDao 는 JdbcContext 를 DI 받아서 사용해야 하므로 아래와 같이 코드를 수정한다.
+```java
+// AS-IS : add 메소드
+public void add(final User user) throws SQLException {
+    jdbcContextWithStatementStrategy(
+        new StatementStrategy() {
+            public PreparedStatement makePreparedStatement(Connection c) throws SQLException {
+                ...
+            }
+        }
+    );
+}
+
+// TO-BE
+public class UserDao {
+    ...
+    private JdbcContext jdbcContext;
+
+    public void setJdbcContext(JdbcContext jdbcContext) {
+        this.jdbcContext = jdbcContext;            
+         // jdbcContext를 DI받도록 만든다.
+    }
+
+    public void add(final User user) throws SQLException {
+        this.jdbcContext.workWithStatementStrategy(     
+            // DI 받은 JdbcContext의 컨텍스트 메소드를 사용하도록 변경한다.
+            new StatementStrategy() {...}
+        );
+    }
+}
+```
