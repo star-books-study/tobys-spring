@@ -504,3 +504,41 @@ public class UserDao {
   - 단점
     - JdbcContext 를 여러 오브젝트에서도 사용되더라고 싱글톤으로 만들 수 없다.
     - DI 작업을 위한 부가적인 코드가 필요하다.
+
+## 3.5. 템플릿과 콜백
+- 전략 패턴의 기본 구조에 익명 내부 클래스를 활용한 방식은 복잡하지만 바뀌지 않는 일정한 패턴을 갖는 작업 흐름이 존재하고, 그 중 일부만 자주 바꿔서 사용하는 경우에 적합한 구조다.
+- 스프링에서는 이러한 방식을 `템플릿/콜백 패턴`이라고 부른다.
+  - 템플릿 : 전략 패턴의 컨텍스트 (workWithStatementStrategy)
+  - 콜백 : 익명 내부 클래스로 만들어지는 오브젝트 (StatementStrategy)
+```java
+public class UserDao {
+    private JdbcContext jdbcContext;
+
+    public void setJdbcContext(JdbcContext jdbcContext) {
+        this.jdbcContext = jdbcContext;            
+    }
+
+    public void add(final User user) throws SQLException {
+        this.jdbcContext.workWithStatementStrategy(     
+            new StatementStrategy() {
+                public PreparedStatement makePreparedStatement(Connection c) throws SQLException {
+                    PreparedStatement ps = c.prepareStatement("insert into users(id, name, password) values(?,?,?)");
+        
+                    ps.setString(1, user.getId());
+                    ps.setString(2, user.getName();
+                    ...
+                    return ps;
+                }
+            }
+        );
+    }
+}
+```
+- 템플릿
+  - 어떤 목적을 위해 미리 만들어둔 모양이 있는 틀
+  - 고정된 틀 안에 바꿀 수 있는 부분을 넣어서 사용하는 경우 템플릿이라고 부른다
+  - 템플릿 메소드 패턴은 **고정된 틀의 로직을 가진 템플릿 메소드를 슈퍼 클래스에 두고, 바뀌는 부분을 서브 클래스의 메소드에 두는 구조**로 이뤄진다.
+- 콜백
+  - 콜백은 실행되는 것을 목적으로 **다른 오브젝트의 메소드에 전달되는 오브젝트**를 말한다.
+  - 파라미터로 전달되지만 값을 참조하기 위한 것이 아니라 **특정 로직을 담은 메소드를 실행시키기 위해 사용**한다
+  - 자바에선 메소드 자체를 파라미터로 전달할 방법은 없기 때문에 메소드가 담긴 오브젝트를 전달해야 하므로 functional object 라고도 한다.
