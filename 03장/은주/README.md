@@ -511,6 +511,23 @@ public class UserDao {
   - 템플릿 : 전략 패턴의 컨텍스트 (workWithStatementStrategy)
   - 콜백 : 익명 내부 클래스로 만들어지는 오브젝트 (StatementStrategy)
 ```java
+public class JdbcContext {
+    private DataSource dataSource;
+
+    public void setDataSource(DataSource dataSource) {  //  DataSource 타입 빈을 DI 받을 수 있게 준비
+        this.dataSource = dataSource;
+    }
+
+    public void workWithStatementStrategy(StatementStrategy stmt) throws SQLException {
+        Connection c = null;
+        PreparedStatement ps = null;
+
+        try {...} 
+        catch (SQLException e) {...}
+        finally {...}
+    }
+}
+
 public class UserDao {
     private JdbcContext jdbcContext;
 
@@ -542,3 +559,8 @@ public class UserDao {
   - 콜백은 실행되는 것을 목적으로 **다른 오브젝트의 메소드에 전달되는 오브젝트**를 말한다.
   - 파라미터로 전달되지만 값을 참조하기 위한 것이 아니라 **특정 로직을 담은 메소드를 실행시키기 위해 사용**한다
   - 자바에선 메소드 자체를 파라미터로 전달할 방법은 없기 때문에 메소드가 담긴 오브젝트를 전달해야 하므로 functional object 라고도 한다.
+
+### 3.5.1. 템플릿/콜백의 동작원리
+
+#### 템플릿/콜백의 특징
+- 익명 내부 클래스 오브젝트는 딱 1번만 사용하기에 변수에 담지말고, jdbcContextWithStatementStrategy() 메소드 파라미터에서 바로 생성하는 게 낫다.
