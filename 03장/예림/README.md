@@ -95,7 +95,7 @@ try (
 }
 ```
 
-### 메서드 추출
+#### 메서드 추출
 - 메소드마다 `preparedStatement`로 SQL을 작성하는 부분을 제외하고 대부분 같은 코드가 반복된다.
 - 이 코드를 분리해야한다. 우선 메소드 추출기법을 생각해볼 수 있겠는데 이 방법은 변하는 부분을 `makeStatement()`로 빼기 때문에 문제가 있다.
 - 왜냐하면 보통 메소드 추출 기법은 공통된 코드를 빼서 여러 곳에서 재사용하기 위함인데, 이는 반대로 변하는 부분을 뺐기 때문에 재사용이 어렵다.
@@ -172,7 +172,7 @@ public void deleteAll() throws SQLException{
 
  
 
-**방법2 개선.DI적용을 위한 클라이언트와 컨텍스트 분리**
+#### DI적용을 위한 클라이언트와 컨텍스트 분리
 
 - 컨텍스트가 어떤 전략을 사용할지에 대해서는 클라이언트가 결정하도록 해야한다.
 
@@ -181,7 +181,7 @@ public void deleteAll() throws SQLException{
 - 여기서는 try/catch/finally 코드가 유사하게 반복되기 때문에 이 코드를 따로 빼서 컨텍스트로 만든다. 그리고 기존의 deleteAll()은 클라이언트 역할을 하도록 DeleteAllStatement()를 만든 후 컨텍스트의 인자로 넘겨 컨텍스트를 호출하는 역할로 변경한다. 다음과 같다.
 
 ```java
-//전략패턴 컨텍스트 역할
+// 전략패턴 컨텍스트 역할
 public void jdbcContextWithStatementStrategy(StatementStrategy stmt) throws SQLException{
     Connection c = null;
     PreparedStatement ps = null;
@@ -199,7 +199,7 @@ public void jdbcContextWithStatementStrategy(StatementStrategy stmt) throws SQLE
 }
 ```
 ```java
-//클라이언트 역할
+// 클라이언트 역할
 public void deleteAll() throws SQLException {
     StatementStrategy st = new DeleteAllStatement();    //전략 인스턴스 생성
     jdbcContextWithStatementStrategy(st);    //컨텍스트에 전략 인스턴스 인자로 호출
@@ -207,4 +207,39 @@ public void deleteAll() throws SQLException {
 ```
 - 이제 클라이언트와 컨텍스트가 DI를 이용하여 분리된 코드로 개선되었다.
 
- 
+### 3.4 컨텍스트와 DI
+
+#### 3.4.1 컨텍스트를 JdbcContext 클래스로 분리하기
+- `jdbcContextWithStateStrategy()`는 JDBC의 기본적 흐름을 담고 있는 컨텍스트로, 다른 DAO에서도 사용 가능하다.
+- 그렇기 때문에 UserDao에서 따로 클래스로 분리하는 작업을 해본다.
+
+#### 클래스로 분리하기
+
+- 일단 UserDao에 있는 컨테스트 코드를 `JdbcContext`라는 클래스를 만든 후에 `workWithStatementStrategy()` 라는 이름으로 변경하여 작성한다. 그리고 DataSource에 의존하기 때문에 DataSource도 setter로 DI받을 수 있도록 만든다. 
+```java
+public class JdbcContext {
+    private DataSource dataSource;
+	
+    public void setDataSource(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+	
+    // 전략패턴 컨텍스트 역할
+    public void workWithStatementStrategy(StatementStrategy stmt) throws SQLException{
+    	 Connection c = null;
+         PreparedStatement ps = null;
+         
+         try {
+             c = dataSource.getConnection();
+             ps = stmt.makePreparedStatement(c);
+             ps.executeUpdate();
+         } catch(SQLException e) {
+         	throw e;
+         } finally {
+             if(ps!=null) {try {ps.close();} catch(SQLException e) {}}
+             if(c!=null) {try {ps.close();} catch(SQLException e) {}}
+         }
+    }
+}
+```
+- 이제 UserDao의 코드를 수정한다. 기존의 컨텍스트는 삭제한 후, JdbcContext를 DI받도록 만든다. 기존의 DataSource 코드는 아직 사용하고 있는 메소드들이 있기 때문에 그대로 냅둔다.
