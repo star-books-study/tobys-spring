@@ -127,9 +127,13 @@ public class UserDaoDeleteAll extends UserDao {
 => 상속을 통해 확장을 꾀하는 템플릿 메서드 패턴 OUT
 
 
- >>
-#### 전략 패턴 적용하기
-- 일정한 구조가 로직은 컨텍스트(context)를 만들고 확장 기능은 전략(Strategy)으로 만들어 사용하는 패턴이다. 컨텍스트는 상황에 따라 변경된 전략을 사용하는 구조이다.
+
+#### 전략 패턴의 적용
+- 오브젝트를 아예 둘로 분리하고 클래스 레벨에서는 인터페이스를 통해서만 의존하도록 만드는 **전략 패턴**을 사용해보자 (OCP 준수 / 템플릿 메서드 패턴보다 유연)
+- 전략 패턴은 확장에 해당하는 변하는 부분을 별도의 클래스로 만들어 추상화된 인터페이스를 통해 위임하는 방식
+<img width="538" alt="image" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/b849231c-18c1-474f-a091-203d64e726df">
+
+- Context의 contextMethod()에서 일정한 구조를 가지고 동작하다가 확장 기능은 Strategy 인터페이스를 통해 외부의 독립된 전략 클래스에 위임
 - 우선 preparedStatement를 만드는 전략을 인터페이스(StatemStrategy.java)로 다음과 같이 만든다.
 
 ```java
@@ -138,7 +142,7 @@ public interface StatementStrategy {
 }
 ```
 
-- 그리고 이것을 상속한 전략(DeleteAllStatement.java)로 만든다.
+- 그리고 이것을 구현한 전략(DeleteAllStatement.java)으로 만든다.
 
 ```java
 public class DeleteAllStatement implements StatementStrategy{
@@ -171,24 +175,24 @@ public void deleteAll() throws SQLException{
 - 실제로 구체적인 전략클래스를 생성 및 사용하는 것은 컨텍스트의 역할이 아니라 '클라이언트'의 역할이기 때문에 컨텍스트와 클라이언트의 분리작업이 필요하다.
 
  
-
 #### DI적용을 위한 클라이언트와 컨텍스트 분리
 
-- 컨텍스트가 어떤 전략을 사용할지에 대해서는 클라이언트가 결정하도록 해야한다.
+- 컨텍스트가 어떤 전략을 사용할지에 대해서는 **클라이언트가 결정**하도록 해야한다.
+	- 클라이언트가 구체적인 전략의 하나를 선택하고 오브젝트로 만들어서 Context에 전달 -> Context는 전달받은 Strategy 구현 클래스의 오브젝트 사용
+<img width="603" alt="image" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/4dbcee18-53d7-43b4-b67a-dd360c7bae3b">
 
-- 위의 그림은 UserDao의 ConnectionMaker DI 방식이 따랐던 흐름과 유사하다. add()메소드가 필요한 커넥션객체를 UserDaoTest 클라이언트에서 전략적으로 생성하여 UserDao에 넘겨준 후 add() 메소드가 이를 사용했다. 지금 상황에서도 이런 흐름에 맞게 개선할 필요가 있다.
+- 위의 그림은 UserDao의 ConnectionMaker DI 방식이 따랐던 흐름과 유사하다. add()메소드가 필요한 커넥션 객체를 UserDaoTest 클라이언트에서 전략적으로 생성하여 UserDao에 넘겨준 후 add() 메소드가 이를 사용했다. 지금 상황에서도 이런 흐름에 맞게 개선할 필요가 있다.
 
 - 여기서는 try/catch/finally 코드가 유사하게 반복되기 때문에 이 코드를 따로 빼서 컨텍스트로 만든다. 그리고 기존의 deleteAll()은 클라이언트 역할을 하도록 DeleteAllStatement()를 만든 후 컨텍스트의 인자로 넘겨 컨텍스트를 호출하는 역할로 변경한다. 다음과 같다.
 
 ```java
-// 전략패턴 컨텍스트 역할
 public void jdbcContextWithStatementStrategy(StatementStrategy stmt) throws SQLException{
     Connection c = null;
     PreparedStatement ps = null;
          
     try {
         c = dataSource.getConnection();
-        ps = stmt.makePreparedStatement(c);
+        ps = stmt.makePreparedStatement(c); // 주목
         ps.executeUpdate();
     } catch(SQLException e) {
         throw e;
@@ -198,14 +202,18 @@ public void jdbcContextWithStatementStrategy(StatementStrategy stmt) throws SQLE
     }
 }
 ```
+- StatementStrategy stmt : 클라이언트가 컨텍스트를 호출할 때 넘겨줄 전략 파라미터
 ```java
 // 클라이언트 역할
 public void deleteAll() throws SQLException {
-    StatementStrategy st = new DeleteAllStatement();    //전략 인스턴스 생성
-    jdbcContextWithStatementStrategy(st);    //컨텍스트에 전략 인스턴스 인자로 호출
+    StatementStrategy st = new DeleteAllStatement(); // 선정한 전략 클래스의 오브젝트 생성
+    jdbcContextWithStatementStrategy(st);   // 컨텍스트 호출. 전략 오브젝트 전달
 }
 ```
 - 이제 클라이언트와 컨텍스트가 DI를 이용하여 분리된 코드로 개선되었다.
+
+## 3.3 JDBC 전략 패턴의 최적화
+- 
 
 ### 3.4 컨텍스트와 DI
 
