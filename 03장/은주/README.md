@@ -674,6 +674,15 @@ public class JdbcContext {
 - 가장 전형적인 템플릿/콜백 패턴 후보는 try-catch-finally 블록을 사용하는 코드이다.
 
 #### 중복의 제거와 템플릿/콜백 설계
-- 템플릿에 담을 반복되는 작업흐름은 어떤 것인지 살펴보자
+- 템플릿에 담을 반복되는 작업 흐름은 어떤 것인지 살펴보자
 - 템플릿 -> 콜백에게 전달할 내부정보가 무엇이고, 콜백 -> 템플릿에게 돌려줄 내용이 무엇인지 생각해보자
 - 템플릿이 작업을 마치고 클라이언트에게 전달해주어야 할 것이 무엇인지 파악하자
+<br><br>
+
+- 템플릿 ; 파일 열어서 각 라인을 읽어올 수 있는 BufferedReader 를 만들어 콜백에게 전달
+- 콜백 ; 각 라인을 읽어서 알아서 처리한 후 최종결과만 템플릿에 반환
+```java
+public interface BufferedReaderCallback {
+    Integer doSomethingWithReader(BufferedReader br) throws IOException;
+}
+```
