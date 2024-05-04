@@ -686,3 +686,47 @@ public interface BufferedReaderCallback {
     Integer doSomethingWithReader(BufferedReader br) throws IOException;
 }
 ```
+
+```java
+public Integer fileReadTemplate(String filepath, BufferedReaderCallback callback) throws IOException {
+    BufferedReader br = null;
+
+    try {
+        br = new BufferedReader(new FileReader(filepath));
+        Integer result = callback.doSomethingWithReader(br);
+        return result;
+    } catch(IOException e) {
+        System.out.println("e.getMessage() = " + e.getMessage());
+        throw e;
+    }
+    finally {
+        if (br != null) {
+            try {
+                br.close();
+            } catch (IOException e) {
+                System.out.println("e.getMessage() = " + e.getMessage());
+            }
+        }
+    }
+}
+```
+- BufferedReaderCallback 라는 콜백을 사용하는 템플릿 메소드는 위와 같다
+
+```java
+    public Integer calcSum(String filePath) throws IOException {
+        BufferedReaderCallback callback = br -> {
+            Integer sum = 0;
+            String line = null;
+
+            while((line = br.readLine()) != null) {
+                sum += Integer.valueOf(line);
+            }
+
+            return sum;
+        };
+
+
+        return this.fileReadTemplate(filePath, callback);
+    }
+```
+- 템플릿/콜백 패턴을 적용하여 calcSum 메소드를 수정해보자
