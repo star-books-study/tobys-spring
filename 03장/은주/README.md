@@ -713,20 +713,175 @@ public Integer fileReadTemplate(String filepath, BufferedReaderCallback callback
 - BufferedReaderCallback 라는 콜백을 사용하는 템플릿 메소드는 위와 같다
 
 ```java
-    public Integer calcSum(String filePath) throws IOException {
-        BufferedReaderCallback callback = br -> {
-            Integer sum = 0;
-            String line = null;
+public Integer calcSum(String filePath) throws IOException {
+    BufferedReaderCallback callback = 
+        new BufferedReaderCallback() {
+            public Integer doSomethingWithReader(BufferedReader br) {
+                Integer sum = 0;
+                String line = null;
 
-            while((line = br.readLine()) != null) {
-                sum += Integer.valueOf(line);
+                while((line = br.readLine()) != null) {
+                    sum += Integer.valueOf(line);
+                }
+                return sum;
             }
+        }
+    };
 
-            return sum;
-        };
+    /** lambda 표현식 사용
+    BufferedReaderCallback callback = br -> {
+        Integer sum = 0;
+        String line = null;
 
-
-        return this.fileReadTemplate(filePath, callback);
-    }
+        while((line = br.readLine()) != null) {
+            sum += Integer.valueOf(line);
+        }
+        return sum;
+    };
+    */
+    return this.fileReadTemplate(filePath, callback);
+}
 ```
-- 템플릿/콜백 패턴을 적용하여 calcSum 메소드를 수정해보자
+- 템플릿/콜백 패턴을 적용하여 calcSum 메소드를 수정하면, BufferedReaderCallback 객체를 만들고 템플릿 메소드의 파라미터로 전달한다.
+
+#### 템플릿/콜백의 재설계
+```java
+public Integer calcSum(String filePath) throws IOException {
+    BufferedReaderCallback callback = 
+        new BufferedReaderCallback() {
+            public Integer doSomethingWithReader(BufferedReader br) {
+                Integer sum = 0;
+                String line = null;
+
+                while((line = br.readLine()) != null) {
+                    sum += Integer.valueOf(line);
+                }
+                return sum;
+            }
+        }
+}
+
+public Integer calcMultiply(String filePath) throws IOException {
+    BufferedReaderCallback callback = 
+        new BufferedReaderCallback() {
+            public Integer doSomethingWithReader(BufferedReader br) {
+                Integer multiply = 1;
+                String line = null;
+
+                while((line = br.readLine()) != null) {
+                    multiply *= Integer.valueOf(line);
+                }
+                return multiply;
+            }
+        }
+}
+```
+- calcMultiply() 메소드는 이전의 calcSum() 메소드와 많은 부분이 공통된다. 
+  - 단, 1부터 시작하며, 곱해나간다는 점만 다르다. 
+- 템플릿/콜백을 찾아낼 때는 **변화하는 경계를 찾고 그 경계에서 주고받는 일정한 정보가 있는지 확인**하면 된다.
+  - 초기값이 1로 시작됐다. 
+  - +=이 *=이 됐다.
+  - 즉, while 문 아래 문장에서 계산하는 부분만 달라지게 된다는 것
+```java
+public interface LineCallback {
+    Integer doSomethingWithLine(String line, Integer value);
+}
+
+public Integer lineReadTemplate(String filepath, LineCallback callback, int initValue) throws IOException {
+    BufferedReader br = null;
+
+    try {
+        String line = null;
+        Integer result = initValue; // 계산 결과를 저장할 변수의 초기값 세팅
+        br = new BufferedReader(new FileReader(filepath));
+
+        while((line = br.readLine()) != null) {
+            result = callback.doSomethingWithLine(line, result);
+            // 각 라인의 내용을 갖고 계산하는 작업만 콜백에게 맡김
+        }
+        return result;
+    } catch(IOException e) {
+        System.out.println("e.getMessage() = " + e.getMessage());
+        throw e;
+    } finally {
+        if (br != null) {
+            try {
+                br.close();
+                } catch (IOException e) {
+                    System.out.println("e.getMessage() = " + e.getMessage());
+                }
+            }
+        }
+}
+
+// 이전 템플릿 메소드
+public Integer fileReadTemplate(String filepath, BufferedReaderCallback callback) throws IOException {
+    BufferedReader br = null;
+
+    try {
+        br = new BufferedReader(new FileReader(filepath));
+        Integer result = callback.doSomethingWithReader(br);
+        return result;
+    } catch(IOException e) {
+        System.out.println("e.getMessage() = " + e.getMessage());
+        throw e;
+    }
+    finally {
+        if (br != null) {
+            try {
+                br.close();
+            } catch (IOException e) {
+                System.out.println("e.getMessage() = " + e.getMessage());
+            }
+        }
+    }
+}
+```
+- LineCallback 콜백을 기준으로 코드를 정리하면, 템플릿에 포함되는 작업흐름이 더욱 많아지고 콜백은 단순해진다
+  - ex. while 문으로 line 을 읽어오는 코드가 템플릿에 포함된다 (콜백을 여러번 호출하는 구조가 되는 것)
+
+```java
+// 이전 콜백 메소드
+public Integer calcMultiply(String filePath) throws IOException {
+    BufferedReaderCallback callback = 
+        new BufferedReaderCallback() {
+            public Integer doSomethingWithReader(BufferedReader br) {
+                Integer multiply = 1;
+                String line = null;
+
+                while((line = br.readLine()) != null) {
+                    multiply *= Integer.valueOf(line);
+                }
+                return multiply;
+            }
+        }
+}
+
+public Integer calcSum(String filePath) throws IOException {
+    LineCallback sumCallBack = new LineCallBack() {
+        public Integer doSomethingWithLine(String line, Integer value) {
+            return value + Integer.valueOf(value);
+        }
+    };    
+
+    // LineCallback callback = ((line, value) -> Integer.valueOf(line) + value);
+    return this.lineReadTemplate(filePath, callback, 0);
+}
+
+public Integer calcMultiply(String filePath) throws IOException {
+    LineCallback callback = ((line, value) -> Integer.valueOf(line) * value);
+    return this.lineReadTemplate(filePath, callback, 1);
+}
+```
+- 로우 레벨의 파일처리 코드가 템플릿으로 분리되고 순수한 계산로직만 남게 되어 코드의 관심사가 명확하게 보인다.
+- **코드의 특성이 바뀌는 경계를 잘 살피고 그것을 인터페이스를 사용해 분리**한다는 가장 기본적인 객체지향 원칙에만 충실하면 어렵지 않게 템플릿/콜백 패턴을 만들어 활용할 수 있다.
+
+#### 제네릭스를 이용한 콜백 인터페이스
+- 현재는 결과가 Integer로 고정되어 있지만, 나눗셈을 하다보면 소수점도 나오고 다른 타입이 필요할 수 있다. 
+- 제네릭스를 이용하여 다양한 오브젝트 타입을 지원하는 인터페이스/메소드를 정의할 수 있다.
+```java
+public interface LineCallback<T> {
+    T doSomethingWithLine(String line, T value);
+}
+```
+
