@@ -885,3 +885,43 @@ public interface LineCallback<T> {
 }
 ```
 
+## 3.6. 스프링의 JdbcTemplate
+- 스프링이 제공하는 JDBC 코드용 기본 템플릿은 JdbcTemplate이다.
+
+### 3.6.1. update()
+```java
+// AS-IS
+public void deleteAll() throws SQLException {
+    executeSql("delete from users");
+}
+
+private void executeSql(final String query) throws SQLException {
+    this.jdbcContext.workWithStatementStrategy(
+        new StatementStrategy() { // 변하지 않는 콜백 클래스 정의와 오브젝트 생성하는 부분
+            public PreparedStatement makePreparedStatement(Connection c) throws SQLException {
+                return c.prepareStatement(query); 
+            }
+        }
+    );
+}
+
+// TO-BE
+```java
+public void deleteAll() {
+    this.jdbcTemplate.update(
+        new PreparedStatementCreator() {
+            public PreparedStatement createPreparedStatement(Connection con) throws SQLException {
+                return con.prepareStatement("delete from users");
+            }
+        }
+    );
+}
+```
+- TO-BE 코드를 또다시 내장 콜백을 사용하는 또다른 update() 메소드 (파라미터로 SQL문을 전달하는 것만 다름) 로 변경할 수 있다.
+```java
+public void deleteAll() {
+    this.jdbcTemplate.update("delete from users");
+}
+```
+
+### 3.6.2. queryForInt()
