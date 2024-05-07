@@ -251,3 +251,30 @@ public class JdbcContext {
 }
 ```
 - 이제 UserDao의 코드를 수정한다. 기존의 컨텍스트는 삭제한 후, JdbcContext를 DI받도록 만든다. 기존의 DataSource 코드는 아직 사용하고 있는 메소드들이 있기 때문에 그대로 냅둔다.
+
+## 3.5 템플릿과 콜백
+### 3.5.1 템플릿/콜백 동작원리
+#### 템플릿/콜백 특징
+- 전략패턴과 달리 콜백은 단일 메소드 인터페이스로 사용한다. 템플릿 작업 흐름 중 보통 한 번만 호출되기 때문이다.
+- 즉 콜백은 **하나의 메소드를 가진 인터페이스를 구현한 익명 내부 클래스**라고 볼 수 있다.
+- 또한 콜백 인터페이스 메소드는 보통 **파라미터**가 있는데, **템플릿 작업 흐름 중에 만들어지는 컨텍스트 정보를 전달 받을 때 사용**된다. `JdbcContext`의 `workWithStatementStrategy()` 메소드 내부에서 생성된 Connection 오브젝트가 콜백 메소드 `makePreparedStatement()` 파라미터로 넘어간다.
+
+### 3.5.2 편리한 콜백의 재활용
+#### 콜백의 분리와 재활용
+
+- 콜백으로 전달하는 익명 내부 클래스의 코드를 보면 SQL 문장을 제외하고는 비슷한 코드가 반복된다.
+- 콜백의 중복코드를 메소드 추출 방식으로 따로 빼낸 후 SQL문장만 인자로 넘겨주도록 수정한다.
+
+```java
+public void deleteAll() throws SQLException {
+    executeSql("delete from users");
+}
+    
+private void executeSql(final String query) throws  SQLException {
+    this.jdbcContext.workWithStatementStrategy(new  StatementStrategy() {
+        public PreparedStatement  makePreparedStatement(Connection c) throws SQLException {
+            return c.prepareStatement(query);
+            }
+       });
+}
+```
