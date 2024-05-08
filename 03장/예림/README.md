@@ -278,3 +278,46 @@ private void executeSql(final String query) throws  SQLException {
        });
 }
 ```
+
+사칙연산으로 이해하기
+책은 이 장면에서 갑자기 사칙연산을 이용해 리팩토링 with 템플릿/콜백 패턴을 진행하기 시작한다. 요약하자면,
+
+성공을 전제로 하는 테스트 코드를 미리 작성하고 출발
+
+(Client) BufferedReader를 열고 닫는 과정 때문에 try~finally가 반복됨 (데자부..)
+
+(Callback) BufferedReaderCallback 이라는 인터페이스를 만들고, 그 안에 Integer doSomethingWithReader(BufferedReader br) 메소드를 선언
+
+(Template) try~finally 부분을 통째로 빼서, Integer fileReadTemplate(String filepath, BufferedReaderCallback cb)라는 메소드로 분리
+
+아래와 같은 결과물. filepath는 numbers.txt인데, Test 코드에서 전달받았고 파일에는 숫자 4개가 한 줄에 하나씩 쓰여있다.
+
+public Integer calcSum(String filepath) throws IOException {
+    BufferedReaderCallback sumCallback = new BufferedReaderCallback() {
+        @Override
+        public Integer doSomethingWithBufferedReader(BufferedReader br) throws IOException {
+            String line = null;
+            Integer sum = 0;
+            while ((line = br.readLine()) != null) {
+                sum += Integer.valueOf(line);
+            }
+            return sum;
+        }
+    };
+    // fileReadTemplate의 자세한 코드는 생략한다.
+    return fileReadTemplate(filepath, sumCallback);
+    
+    /* 좀 더 줄이면 아래와 같다.
+    return fileReadTemplate(filepath, new BufferedReaderCallback() {
+        @Override
+        public Integer doSomethingWithBufferedReader(BufferedReader br) throws IOException {
+            String line = null;
+            Integer sum = 0;
+            while ((line = br.readLine()) != null) {
+                sum += Integer.valueOf(line);
+            }
+            return sum;
+        }
+    });*/
+}
+그런데 위 코드는 덧셈의 경우이고, 곱셈의 경우에는 Integer sum = 0, sum *= Integer.valudOf(line)으로 바꾸는 걸로 충분하다. 즉, 아직도 변하지 않는 부분이 변하는 부분 위아래로 조금씩 붙어있다. 따라서 이를 살짝 개량한다.
