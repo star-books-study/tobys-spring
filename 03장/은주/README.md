@@ -928,7 +928,11 @@ public void deleteAll() {
 - getCount() : SQL 쿼리 실행하고 ResultSet 을 통해 결과값을 가져오는 코드
 ```java
 public int getCount() throws SQLException {
-    return jdbcTemplate.query("select count(*) from users", new ResultSetExtractor<Integer>() {
+    return jdbcTemplate.query(new PreparedStatementCreator() {
+        public PreparedStatement createPreparedStatement(Connection con) throws SQLException {
+            return con.prepareStatement("select count(*) from users");
+        }
+    }, new ResultSetExtractor<Integer>() {
         public Integer extractData(ResultSet resultSet) throws SQLException, DataAccessException {
             resultSet.next();
             return resultSet.getInt(1);
