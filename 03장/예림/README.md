@@ -263,22 +263,57 @@ public class JdbcContext {
 #### 콜백의 분리와 재활용
 
 - 콜백으로 전달하는 익명 내부 클래스의 코드를 보면 SQL 문장을 제외하고는 비슷한 코드가 반복된다.
-- 콜백의 중복코드를 메소드 추출 방식으로 따로 빼낸 후 SQL문장만 인자로 넘겨주도록 수정한다.
+- 콜백의 중복코드를 메소드 추출 방식으로 따로 빼낸 후 SQL 문장만 인자로 넘겨주도록 수정한다.
 
 ```java
 public void deleteAll() throws SQLException {
-    executeSql("delete from users");
+	executeSql("delete from users");
 }
     
 private void executeSql(final String query) throws  SQLException {
-    this.jdbcContext.workWithStatementStrategy(new  StatementStrategy() {
-        public PreparedStatement  makePreparedStatement(Connection c) throws SQLException {
-            return c.prepareStatement(query);
-            }
-       });
+	this.jdbcContext.workWithStatementStrategy(
+		new StatementStrategy() {
+	        	public PreparedStatement makePreparedStatement(Connection c)
+				throws SQLException {
+	            	return c.prepareStatement(query);
+			}
+		}
+	);
 }
 ```
+- 바뀌지 않는 모든 부분을 빼내서 executeSql() 메서드로 만들었다.
+- 바뀌는 부분인 SQL 문장만 파라미터로 받아서 사용하게 만들었다.
 
+#### 콜백과 템플릿의 결합
+- 재사용 가능한 콜백을 담고 있는 메서드라면 모든 DAO 메서드에서 executeSql() 메서드를 사용할 수 있도록 공유할 수 있는 템플릿 클래스 안으로 옮겨도 된다.
+- executeSql 메서드를 JdbcContext로 옮긴다.
+
+```java
+public class JdbcContext {
+	...
+	public void executeSql(final String query) throws SQLException {
+		workWithStatementStrategy(
+			new StatementStrategy(
+				public PreparedStatement makePreparedStatement(Connection c)
+					throws SQLExceptioin {
+				    return c.prepareStatement(query);
+				}
+			}
+		);
+	}
+}
+```
+<img width="529" alt="스크린샷 2024-05-09 오후 9 59 40" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/d88b8d03-8db1-4ed1-899d-280512cba1ac">
+
+
+### 3.5.3 템플릿 / 콜백의 응용
+> 스프링에 내장된 것을 원리도 알지 못한 채로 기계적으로 사용하는 경우와 적용된 패턴을 이해하고 사용하는 경우는 큰 차이가 있다.
+- 중복된 코드는 먼저 메서드로 분리하는 습관을 기르자.
+- 그 중 일부 작업을 필요에 따라 바꾸어 사용해야 한다면 인터페이스를 사이에 두고 분리해서 전략 패턴을 적용하고 DI로 의존관계를 관리하도록 만든다.
+- 그런데 바뀌는 부분이 한 애플리케이션 안에서 동시에 여러 종류가 만들어질 수 있다면 이번엔 **템플릿 / 콜백** 패턴을 적용하는 것을 고려해볼 수 있다.
+
+#### 테스트와 try/catch/finally
+- 가장 전형적인 템플릿 / 콜백 패턴의 후보
 사칙연산으로 이해하기
 책은 이 장면에서 갑자기 사칙연산을 이용해 리팩토링 with 템플릿/콜백 패턴을 진행하기 시작한다. 요약하자면,
 
