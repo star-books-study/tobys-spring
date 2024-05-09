@@ -940,3 +940,9 @@ public int getCount() throws SQLException {
     });
 }
 ```
+- JdbcTemplate은 위와 같이 특정한 타입의 결과를 출력하는 경우에 대해 queryForObject()라는 편리한 메소드를 제공한다. 결과를 반환하는 SQL 문장과 반환하는 타입의 정보만 클래스 형태로 넘겨주면 된다.
+```java
+public int getCount() throws SQLException {
+    return jdbcTemplate.queryForObject("select count(*) from users", Integer.class);
+}
+```
