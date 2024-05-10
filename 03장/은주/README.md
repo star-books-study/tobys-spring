@@ -946,3 +946,8 @@ public int getCount() throws SQLException {
     return jdbcTemplate.queryForObject("select count(*) from users", Integer.class);
 }
 ```
+
+### 3.6.4. query()
+#### 기능 정의와 테스트 작성
+- 여태까지는 단일 row에 대해서만 데이터를 조회해보았다. 
+- getAll()과 같은 메소드는 users 테이블에 존재하는 모든 row를 가져와야 한다. 
