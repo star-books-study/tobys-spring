@@ -314,6 +314,64 @@ public class JdbcContext {
 
 #### 테스트와 try/catch/finally
 - 가장 전형적인 템플릿 / 콜백 패턴의 후보
+- 간단한 템플릿 / 콜백 예제 : 파일을 열어서 모든 라인의 숫자를 더 한 합을 돌려주는 코드
+```java
+// 테스트
+...
+public class CalcSumTest {
+	@Test
+	public void sumOfNumbers() throws IOException {
+		Calculator calculator = new Calculator();
+		int sum = calculator.calcSum(getClass().getResource(
+			"numbers.txt").getPath());
+		assertThat(sum, is(10));
+	}
+}
+```
+
+```java
+public class Calculator {
+	public Integer calSUm(String filepath) throws IOException {
+		BufferedReader br = new BufferedReader(new FileReader(filePath));
+		Integer sum = 0;
+		String line = null;
+		while(line = br.readLine() != null) {
+			sum += Integer.valueOf(line);
+		}
+	
+		br.close(); // 한 번 연 파일은 반드시 닫아준다.
+		return sum;
+	}
+}
+```
+- calcSum() 메서드도 파일을 읽거나 처리하다가 예외가 발생하면 메서드를 빠져나가는 문제 발생
+- try / finally 블록을 적용해서 어떤 경우에도 파일이 열렸으면 반드시 닫아줘야 한다.
+- catch 블록으로 로그를 남기는 기능도 추가해보자.
+```java
+public Integer calSUm(String filepath) throws IOException {
+	BufferedReader br = null;
+
+	try {
+		br = new BufferedReader(new FileReader(filePath));
+		Integer sum = 0;
+		String line = null;
+		while(line = br.readLine() != null) {
+			sum += Integer.valueOf(line);
+		}
+		return sum;
+	}
+	catch(IOException e) {
+		System.out.println(e.getMessage());
+		throw e;
+	}
+	finally {
+		if (br != null) {
+			try { br.close(); }
+			catch(IOException e) { System.out.println(e.getMessage()); } 			}
+	}
+}
+```
+#### 중복의 제거와 템플릿 / 콜백 설계
 사칙연산으로 이해하기
 책은 이 장면에서 갑자기 사칙연산을 이용해 리팩토링 with 템플릿/콜백 패턴을 진행하기 시작한다. 요약하자면,
 
