@@ -889,6 +889,7 @@ public interface LineCallback<T> {
 - 스프링이 제공하는 JDBC 코드용 기본 템플릿은 JdbcTemplate이다.
 
 ### 3.6.1. update()
+- PreparedStatementCreator 인터페이스의 createPreparedStatement() 는 makePareparedStatement()와 동일한 역할을 한다.
 ```java
 // AS-IS
 public void deleteAll() throws SQLException {
@@ -925,13 +926,16 @@ public void deleteAll() {
 ```
 
 ### 3.6.2. queryForInt()
-- getCount() : SQL 쿼리 실행하고 ResultSet 을 통해 결과값을 가져오는 코드
+- ResultSetExtractor 은 PreparedStatement 의 쿼리를 실행해서 얻은 ResultSet 을 전달받는 콜백이다
+- ResultSetExtractor 콜백은 템플릿이 제공하는 ResultSet 을 이용해서 원하는 값을 추출하여 템플릿에 전달하면, 템플릿은 나머지 작업을 수행한 뒤 그 값을 query() 메소드의 리턴값으로 돌려준다.
 ```java
 public int getCount() throws SQLException {
-    return jdbcTemplate.query(new PreparedStatementCreator() {
+    return jdbcTemplate.query(new PreparedStatementCreator() { 
+        // 1번째 콜백 ; 템플릿으로부터 Connection 을 받고 PreparedStatement 를 돌려준다
         public PreparedStatement createPreparedStatement(Connection con) throws SQLException {
             return con.prepareStatement("select count(*) from users");
         }
+        // 2번째 콜백 ; 템플릿으로부터 ResultSet 을 받고 추출한 결과를 돌려준다
     }, new ResultSetExtractor<Integer>() {
         public Integer extractData(ResultSet resultSet) throws SQLException, DataAccessException {
             resultSet.next();
@@ -940,14 +944,117 @@ public int getCount() throws SQLException {
     });
 }
 ```
-- JdbcTemplate은 위와 같이 특정한 타입의 결과를 출력하는 경우에 대해 queryForObject()라는 편리한 메소드를 제공한다. 결과를 반환하는 SQL 문장과 반환하는 타입의 정보만 클래스 형태로 넘겨주면 된다.
+- JdbcTemplate은 위와 같이 `특정한 타입의 결과`를 출력하는 경우에 대해 queryForInt() 라는 메소드를 제공한다.
+  - Integer 타입 결과를 가져올 수 있는 SQL 문장만 전달해주면 된다.
 ```java
 public int getCount() throws SQLException {
-    return jdbcTemplate.queryForObject("select count(*) from users", Integer.class);
+    return jdbcTemplate.queryForInt("select count(*) from users");
 }
 ```
 
+### 3.6.3. queryForObject()
+- ResultSetExtractor 는 ResultSet 을 한 번 전달받아 알아서 추출 작업을 진행하고 최종 결과만 리턴한다
+- RowMapper 는 ResultSet 의 row 하나를 매핑하기 위해 사용되기 때문에 row 여러 개를 매핑할 경우, 여러 번 호출될 수 있다
+```java
+public User get(String id) {
+    return this.jdbcTemplate.queryForObject("select * from users where id = ?", 
+        new Object[] {id}, // SQL 에 바인딩할 파라미터 값
+        new RowMapper<User>() { // ResultSet 를 오브젝트에 매핑해주는 RowMapper 콜백
+            public User mapRow(ResultSet rs, int rowNum) throws SQLException {
+                User user = new User();
+                user.setId(rs.getString("id"));
+                user.setName(rs.getString("name"));
+                user.setPassword(rs.getString("password"));
+
+                return user;
+            }
+        });
+}
+```
+- queryForObject() 는 SQL 실행 시 1개의 row 만 얻을 거라고 기대한다.
+- 1,2번째 파라미터를 사용해서 PreparedStatement 콜백을 만들고, ResultSet 의 next() 를 실행시켜 1번째 row 로 이동한 후 RowMapper 콜백을 호출한다.
+- queryForObject()에서 결과가 1개가 아니라면 (즉 2개 이상이거나 없을 때), EmptyResultDataAccessException 예외를 던지도록 만들어져 있다
+
 ### 3.6.4. query()
 #### 기능 정의와 테스트 작성
-- 여태까지는 단일 row에 대해서만 데이터를 조회해보았다. 
 - getAll()과 같은 메소드는 users 테이블에 존재하는 모든 row를 가져와야 한다. 
+- queryForObject() 는 일반적으로 **쿼리의 결과가 하나일 때** 사용하고, query()는 일반적으로 **여러 개의 로우가 결과로 나오는 경우**에 사용한다. 
+  - 리턴타입은 제네릭 타입을 가진 List<T>이며, 타입은 파라미터로 넘기는 RowMapper<T> 콜백 오브젝트에서 결정된다.
+```java
+public List<User> getAll() {
+    return this.jdbcTemplate.query("select * from users order by id", 
+        new RowMapper<User>() {
+            User user = new User();
+
+            user.setId(rs.getString("id"));
+            user.setName(rs.getString("name"));
+            user.setPassword(rs.getString("password"));
+
+            return user;
+        });
+}
+```
+- query() 템플릿은 SQL 을 실행해서 얻은 **ResultSet 의 모든 row 에 대해 RowMapper 콜백을 호출한다**
+- RowMapper<T>는 쿼리의 결과로 반환된 모든 Row에 대해 매핑 작업을 수행 후에 List 형태로 반환한다
+
+#### 테스트 보완
+- 네거티브 테스트라고 불리는 예외 상황에 대한 테스트는 항상 빼먹기 쉬우므로 주의해야 한다
+- 테스트하고자 하는 메소드에 **기대하는 동작방식에 대한 검증**이 우선이 되어야 한다
+  - 내부 동작방식과 관련없이 테스트코드에서 특정 메소드가 동작하는 방식이 명확히 보여야 한다
+
+### 3.6.5. 재사용 가능한 콜백의 분리
+```java
+public class UserDao {
+    private JdbcTemplate jdbcTemplate;
+    private RowMapper<User> userRowMapper = 
+        new RowMapper<User> (rs, rowNum) -> {
+            User user = new User();
+            user.setId(rs.getString("id"));
+            user.setName(rs.getString("name"));
+            user.setPassword(rs.getString("password"));
+            return user;
+    };
+    
+
+    public void setDataSource(DataSource dataSource) {
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
+
+    public void add(User user) {
+        this.jdbcTemplate.update("insert into users(id, name, password) values (?, ?, ?)", 
+            user.getId(), user.getName(), user.getPassword());
+    }
+
+    public User get(String id) {
+        return this.jdbcTemplate.queryForObject("select * from users where id = ?", 
+            new Object[] {id}, userRowMapper);
+    }
+
+    public void deleteAll() {
+        this.jdbcTemplate.update("delete from users");
+    }
+
+    public int getCount() {
+        return jdbcTemplate.queryForInt("select count(*) from users");
+    }
+
+    public List<User> getAll() {
+        return this.jdbcTemplate.query("select * from users", userRowMapper);
+    }
+}
+```
+- UserDao 코드에는 User의 정보를 DB에 넣거나 가져오거나 조작하는 방법에 대한 핵심적인 로직만 담겨있다.
+- 만약 사용할 테이블과 필드정보가 바뀔 경우, UserDao의 거의 모든 코드가 함께 바뀔 것이다. 
+  - 따라서 `응집도가 높다`
+- 반면 JDBC API를 사용하는 방식, 예외처리, 리소스의 반납, DB 연결을 어떻게 가져올지에 대한 책임은 모두 JdbcTemplate에게 있다. 
+  - 따라서 그런 면에서 책임이 다른 코드와는 `낮은 결합도`를 유지하고 있다.
+- 다만, JdbcTemplate이라는 템플릿 클래스를 **직접 이용**한다는 면에서는 특정 템플릿/콜백 구현에 `강한 결합`을 갖고 있다.
+- JdbcTemplate 은 DAO 안에서 직접 만들어 사용하는 게 스프링의 관례지만, 원한다면 독립된 싱글톤 빈으로 등록하고 DI 받아 인터페이스를 통해 사용할 수도 있다
+- UserDao에서 더 개선할 점
+  - UserMapper를 를 UserDao 빈의 DI용 프로퍼티로 만들기
+    - UserMapper를 독립된 빈으로 만들고 XML 설정에 User 테이블의 필드 이름과 User 오브젝트 프로퍼티의 매핑 정보를 담을 수도 있다
+    - User의 프로퍼티와 User 테이블의 필드 이름이 바뀌거나 매핑 방식이 바뀌는 경우에 UserDao 코드를 수정하지 않고도 매핑정보를 변경할 수 있다는 장점이 있다.
+  - DAO 메소드에서 사용하는 SQL 문장을 외부 리소스에 담고 이를 읽어와 사용하게 만들기
+    - DB 테이블의 이름이나 필드 이름을 변경하거나 sQL 쿼리를 최적화해야 할 때도 UserDao 코드에는 손을 댈 필요가 없다.
+
+## 3.7. 정리
