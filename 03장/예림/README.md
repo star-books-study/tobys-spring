@@ -372,45 +372,370 @@ public Integer calSUm(String filepath) throws IOException {
 }
 ```
 #### 중복의 제거와 템플릿 / 콜백 설계
-사칙연산으로 이해하기
-책은 이 장면에서 갑자기 사칙연산을 이용해 리팩토링 with 템플릿/콜백 패턴을 진행하기 시작한다. 요약하자면,
 
-성공을 전제로 하는 테스트 코드를 미리 작성하고 출발
-
-(Client) BufferedReader를 열고 닫는 과정 때문에 try~finally가 반복됨 (데자부..)
-
-(Callback) BufferedReaderCallback 이라는 인터페이스를 만들고, 그 안에 Integer doSomethingWithReader(BufferedReader br) 메소드를 선언
-
-(Template) try~finally 부분을 통째로 빼서, Integer fileReadTemplate(String filepath, BufferedReaderCallback cb)라는 메소드로 분리
-
-아래와 같은 결과물. filepath는 numbers.txt인데, Test 코드에서 전달받았고 파일에는 숫자 4개가 한 줄에 하나씩 쓰여있다.
-
-public Integer calcSum(String filepath) throws IOException {
-    BufferedReaderCallback sumCallback = new BufferedReaderCallback() {
-        @Override
-        public Integer doSomethingWithBufferedReader(BufferedReader br) throws IOException {
-            String line = null;
-            Integer sum = 0;
-            while ((line = br.readLine()) != null) {
-                sum += Integer.valueOf(line);
-            }
-            return sum;
+- 반복되는 작업 흐름은 템플릿으로 독립
+- 템플릿과 콜백의 경계를 정하고 템플릿이 콜백에게, 콜백이 템플릿에게 각각 전달하는 내용이 무엇인지 파악하는 것이 중요하다.
+- 구조
+	- `fileReadTemplate(String filePath, BufferedReaderCallback)` : 콜백 객체를 받아서 적절한 시점에 실행
+   	- `BufferedReaderCallback` : 각 라인을 읽어서 처리한 후에 최종결과를 템플릿에 전달
+```java
+public interface BufferedReaderCallback {
+  Integer doSomethingWithReader(BufferedReader br) throws IOException;
+}          
+public class Calculator {
+  // BufferedReaderCallback을 사용하는 템플릿 메서드
+  public Integer fileReadTemplate(String filePath, BufferedReaderCallback callback) throws IOException {
+    BufferedReader br = null;
+    try {
+      br = new BufferedReader(new FileReader(filePath));
+      return callback.doSomethingWithReader(br);
+    } catch (IOException e) {
+      throw e;
+    } finally {
+      if (br != null) { try { br.close(); } catch (Exception e) { throw e; } }
+    }
+  }
+  // 템플릿/콜백을 적용한 calcSum 메서드
+  public Integer calcSum(String filePath) throws IOException {
+    BufferedReaderCallback callback = new BufferedReaderCallback() {
+      @Override
+      public Integer doSomethingWithReader(BufferedReader br) throws IOException {
+        Integer sum = 0;
+        String line = null;
+        while((line = br.readLine()) != null) {
+          sum += Integer.valueOf(line);
         }
+        return sum;
+      }
     };
-    // fileReadTemplate의 자세한 코드는 생략한다.
-    return fileReadTemplate(filepath, sumCallback);
-    
-    /* 좀 더 줄이면 아래와 같다.
-    return fileReadTemplate(filepath, new BufferedReaderCallback() {
-        @Override
-        public Integer doSomethingWithBufferedReader(BufferedReader br) throws IOException {
-            String line = null;
-            Integer sum = 0;
-            while ((line = br.readLine()) != null) {
-                sum += Integer.valueOf(line);
-            }
-            return sum;
-        }
-    });*/
+    return fileReadTemplate(filePath, callback);
+  }            
 }
-그런데 위 코드는 덧셈의 경우이고, 곱셈의 경우에는 Integer sum = 0, sum *= Integer.valudOf(line)으로 바꾸는 걸로 충분하다. 즉, 아직도 변하지 않는 부분이 변하는 부분 위아래로 조금씩 붙어있다. 따라서 이를 살짝 개량한다.
+```
+
+#### 템플릿 / 콜백 재설계
+- 남아있는 중복되는 부분을 제거한다.
+	```java
+	public interface LineCallback {
+	  Integer doSomethingWithLine(String line, Integer value);
+	}
+	public class Calculator {
+	  // LineCallback을 사용하는 템플릿 메서드
+	  public Integer lineReadTemplate(String filePath, LineCallback lineCallback, int initValue) throws IOException {
+	    BufferedReader br = null;
+	    try {
+	      br = new BufferedReader(new FileReader(filePath));
+	      Integer result = initValue;
+	      String line = null;
+	      while ((line = br.readLine()) != null) {
+	        result = lineCallback.doSomethingWithLine(line, result);
+	      }
+	      return result;
+	    } catch (IOException e) {
+	      throw e;
+	    } finally {
+	      if (br != null) { try { br.close(); } catch (Exception e) { throw e; } }
+	    }
+	  }
+	  // lineReadTemplate을 사용하도록 수정한 합, 곱 계산 메서드
+	  public Integer calcMultiply(String filePath) throws IOException {
+	    LineCallback sumCallback = new LineCallback() {
+	      public Integer doSomethingWithLine(String line, Integer value) {
+	        return value * Integer.valueOf(line);
+	      }
+	    };
+	    return lineReadTemplate(filePath, sumCallback, 1);
+	  }
+	  public Integer calcSum(String filePath) throws IOException {
+	    LineCallback sumCallback = new LineCallback() {
+	      public Integer doSomethingWithLine(String line, Integer value) {
+	        return value + Integer.valueOf(line);
+	      }
+	    };
+	    return lineReadTemplate(filePath, sumCallback, 0);
+	  }
+	}
+	```
+- 제네릭스를 이용한 콜백 인터페이스
+	```java
+	public interface LineCallback<T> {
+	  T doSomethingWithLine(String line, T value);
+	}
+	public class Calculator {
+	  // 제너릭을 적용한 템플릿 메서드
+	  public <T> T lineReadTemplate(String filePath, LineCallback<T> lineCallback, T initValue) throws IOException {
+	    BufferedReader br = null;
+	    try {
+	      br = new BufferedReader(new FileReader(filePath));
+	      T result = initValue;
+	      String line = null;
+	      while ((line = br.readLine()) != null) {
+	        result = lineCallback.doSomethingWithLine(line, result);
+	      }
+	      return result;
+	    } catch (IOException e) {
+	      throw e;
+	    } finally {
+	      if (br != null) { try { br.close(); } catch (Exception e) { throw e; } }
+	    }
+	  }
+	  public String concatenate(String filePath) throws IOException {
+	    LineCallback<String> concatenateCallback = new LineCallback<String>() {
+	      public String doSomethingWithLine(String line, String value) {
+	        return value + line;
+	      }
+	    };
+	    return lineReadTemplate(filePath, concatenateCallback, "");
+	  }
+	  public Integer calcMultiply(String filePath) throws IOException {
+	    LineCallback<Integer> sumCallback = new LineCallback<Integer>() {
+	      public Integer doSomethingWithLine(String line, Integer value) {
+	        return value * Integer.valueOf(line);
+	      }
+	    };
+	    return lineReadTemplate(filePath, sumCallback, 1);
+	  }
+	  public Integer calcSum(String filePath) throws IOException {
+	    LineCallback<Integer> sumCallback = new LineCallback<Integer>() {
+	      public Integer doSomethingWithLine(String line, Integer value) {
+	        return value + Integer.valueOf(line);
+	      }
+	    };
+	    return lineReadTemplate(filePath, sumCallback, 0);
+	  }            
+	}
+	```
+## 3.6 스프링의 JdbcTemplate
+- 스프링은 다양한 템플릿 / 콜백 기술을 제공한다. 그 중 JdbcTemplate를 사용해본다.
+```java
+public class UserDao {
+  private JdbcTemplate jdbcTemplate;
+  public void setDataSource(DataSource dataSource) {
+    this.jdbcTemplate = new JdbcTemplate(dataSource);
+    this.dataSource = dataSource;
+  }
+}
+```
+- update()
+  - deleteAll()에 적용
+	```java
+	public void deleteAll() throws SQLException {
+	  this.jdbcTemplate.update("delete from users");
+	}
+  	```
+  - add()에 적용
+	```java
+	public void add(User user) throws ClassNotFoundException, SQLException {
+	  this.jdbcTemplate.update("insert into users(id, name, password) values(?, ?, ?)"
+	      , user.getId(), user.getName(), user.getPassword());
+	}
+ 	```
+- queryForInt()
+  - 콜백이 2개인 .query() 메서드 활용
+	- 첫 번째 콜백 : statement 생성
+	- 두 번째 콜백 : ResultSet으로 값 추출(제너릭)
+		```java
+		public int getCount() {
+			  return this.jdbcTemplate.query(new PreparedStatementCreator() {
+			    @Override
+			    public PreparedStatement createPreparedStatement(Connection connection) throws SQLException {
+			      return connection.prepareStatement("select count(*) from users");
+			    }
+			  }, new ResultSetExtractor<Integer>() {
+			    @Override
+			    public Integer extractData(ResultSet resultSet) throws SQLException, DataAccessException {
+			      resultSet.next();
+			      return resultSet.getInt(1);
+			    }
+			  });
+			}
+	  	```
+- queryForInt() 활용
+	```java
+	// queryForInt는 spring 3.2.2에서 deprecated. 현재는 queryForObject 뿐
+	public int getCount() {
+	  return jdbcTemplate.queryForObject("select count(*) from users", Integer.class);
+	}
+	```
+- queryForObject()
+	- RowMapper : ResultSet 로우 하나를 매핑하기 위해 사용
+	- 한 개의 결과만 얻을 것으로 기대
+		- single일까 unique일까 -> unique!
+		- 2개 이상이면 IncorrectResultSizeDataAccessException 발생 하면서 실패
+		- 0개면 EmptyResultDataAccessException 발생 하면서 실패
+   		```java
+		public User get(String id) throws SQLException {
+		  return jdbcTemplate.queryForObject("select * from users where id = ?",
+		    // SQL에 바인딩 할 파라미터 값. 가변인자 대신 배열 사용
+		    new Object[] { id },
+		    // ResultSet 한 로우의 결과를 오브젝트에 매핑해주는 RowMapper콜백
+		    new RowMapper<User>() {
+		      public User mapRow(ResultSet rs, int rowNum) throws SQLException {
+			User user = new User();
+			user.setId(rs.getString("id"));
+			user.setName(rs.getString("name"));
+			user.setPassword(rs.getString("password"));
+			return user;
+		      }
+		    });
+		}
+	  	```
+- query()
+	- public <T> List<T> query(String sql, RowMapper rowMapper)
+	- 기능 정의와 테스트 작성
+		- 모든 사용자 정보를 가져오기 위한 getAll은 id순으로 정렬해서 가져오도록 함
+	- 테스트 코드
+		```java
+		@Test
+		public void getAll() throws Exception {
+		  userDao.deleteAll();
+		  User user1 = new User("001", "name1", "password1");
+		  User user2 = new User("002", "name2", "password2");
+		  User user3 = new User("003", "name3", "password3");
+		  List<User> originUserList = Arrays.asList(user1, user2, user3);
+		  for(User user : originUserList) { userDao.add(user); }
+		       List<User> userList = userDao.getAll();
+		       assertThat(userList.size()).isEqualTo(originUserList.size());
+		  for(int i = 0; i < userList.size(); i++) {
+		    checkSameUser(originUserList.get(i), userList.get(i));
+		  }
+		}
+		private void checkSameUser(User originUser, User resultUser) {
+		  assertThat(originUser.getId()).isEqualTo(resultUser.getId());
+		  assertThat(originUser.getName()).isEqualTo(resultUser.getName());
+		  assertThat(originUser.getPassword()).isEqualTo(resultUser.getPassword());
+		}
+		```
+	- UserDao 코드
+		```java
+		public List<User> getAll() {
+		  return jdbcTemplate.query("select * from users order by id",
+		    (rs, rowNum) -> {
+		      User user = new User();
+		      user.setId(rs.getString("id"));
+		      user.setName(rs.getString("name"));
+		      user.setPassword(rs.getString("password"));
+		      return user;
+		    });
+		}
+		```
+	- 테스트 보완
+		- 네거티브 테스트 필요
+		- 아래처럼 빈 테이블의 결과는 size가 0인 List이다 라고 알 수 있는 테스트가 있으면, getAll메서드가 내부적으로 어떻게 작동하는지 알 필요도 없어지는 장점이 있다.
+		```java
+		@Test
+		public void getAllFromEmptyTable() throws Exception {
+		  userDao.deleteAll();
+		  List<User> userList = userDao.getAll();
+		  assertThat(userList.size()).isEqualTo(0);
+		}
+		```
+
+  - 재사용 가능한 콜백의 분리
+  - DI를 위한 코드 정리
+    ```java
+    // 불필요한 DataSource, JdbcContext 제거
+	public class UserDao {        
+	  private JdbcTemplate jdbcTemplate;        
+	  public UserDao(DataSource dataSource) {
+	    this.jdbcTemplate = new JdbcTemplate(dataSource);
+	}
+ 	```
+- 중복 제거
+  - get(), getAll()에 RowMapper의 내용이 똑같음
+  - 단 두개의 중복이라 해도 언제 어떻게 확장이 필요해질지 모르니 제거하는게 좋다
+  	```java
+	  // 중복 제거한 rowMapper와 get()메서드
+	public User get(String id) {
+	  return jdbcTemplate.queryForObject("select * from users where id = ?",
+		  new Object[] { id },
+		  getUserMapper());
+	}          
+	private RowMapper<User> getUserMapper() {
+	  return (resultSet, i) -> {
+	    User user = new User();
+	    user.setId(resultSet.getString("id"));
+	    user.setName(resultSet.getString("name"));
+	    user.setPassword(resultSet.getString("password"));
+	    return user;
+	  };
+	}
+	```
+
+- 템플릿/콜백 패턴과 UserDao
+  - 템플릿/콜백 패턴과 DI를 이용해 깔끔해진 UserDao 클래
+  - 응집도 높다 : 테이블과 필드정보가 바뀌면 UserDao의 거의 모든 코드가 함께 바뀐다
+  - 결합도 낮다 : JDBC API 활용방식, 예외처리, 리소스 반납, DB 연결 등에 대한 책임과 관심은 JdbcTemplate에 있기 때문에 변경이 일어난다 해도 UserDao의 코드에는 영향을 주지 않는다
+	```java
+	public class UserDao {          
+	private JdbcTemplate jdbcTemplate;          
+	public UserDao(DataSource dataSource) {
+	this.jdbcTemplate = new JdbcTemplate(dataSource);
+	}          
+	public void add(final User user) {
+	this.jdbcTemplate.update("insert into users(id, name, password) values(?, ?, ?)"
+	, user.getId(), user.getName(), user.getPassword());
+	}          
+	public User get(String id) {
+	return jdbcTemplate.queryForObject("select * from users where id = ?"
+	    ,new Object[] { id }, getUserMapper());
+	}
+	private RowMapper<User> getUserMapper() {
+	return (resultSet, i) -> {
+	User user = new User();
+	user.setId(resultSet.getString("id"));
+	user.setName(resultSet.getString("name"));
+	user.setPassword(resultSet.getString("password"));
+	return user;
+	};
+	}
+	public User getUserByName(String name) {
+	return jdbcTemplate.queryForObject("select * from users where name = ?"
+	     , new Object[] { name }, getUserMapper());
+	}          
+	public void deleteAll() {
+	this.jdbcTemplate.update("delete from users");
+	}          
+	public int getCount() {
+	return jdbcTemplate.queryForObject("select count(*) from users", Integer.class);
+	}          
+	public List<User> getAll() {
+	return jdbcTemplate.query("select * from users order by id", getUserMapper());
+	}          
+	}
+	```
+
+## 3.7 정리
+예외처리와 안전한 리소스 반환을 보장해주는 DAO 코드를 만들었다.
+객체지향 설계 원리, 디자인 패턴, DI 등을 적ㅇ요해서 깔끔하고 유연하며 단순한 코드로 만들었다.
+JDBC 처럼 예외발생 가능성이 있으며 공유 리소스 반환이 필요한 코드는 반드시 try-catch-finally 블록으로 관리해야 한다.
+전략 패턴
+로직에 반복이 있으면서 그 중 일부(전략)만 바뀌고 일부(컨텍스트)는 바뀌지 않는다면 전략 패턴을 적용한다.
+```
+한 애플리케이션 안에서 여러 전략을 동적으로 구성하고 사용해야 한다면 컨텍스트를 이용하는 클라이언트 메서드에서 직접 전략을 정의하고 제공하도록 만든다.
+익명 내부 클래스를 사용해서 전략 오브젝트를 구현하면 편리하다.
+컨텍스트가 하나 이상의 클라이언트 객체에서 사용된다면 클래스를 분리해서 공유하도록 만든다.
+컨텍스트는 별도 빈으로 등록해서 DI 받거나 클라이언트 클래스에서 직접 생성해 사용한다.
+```
+템플릿 콜백 패턴
+단일 전략 메서드를 갖는 전략 패턴이면서, 익명 내부 클래스를 사용해서 매번 전략을 새로 만들어 사용하고, 컨텍스트 호출과 동시에 전략 DI를 수행하는 방식
+콜백 : 다시 불려지는 기능 이라는 의미
+```
+콜백 코드에도 일정한 패턴이 반복된다면 콜백을 템플릿에 넣고 재활용 하는 것이 편리하다.
+템플릿과 콜백의 타입이 다양하게 바뀔 수 있다면 제너릭을 이용한다.
+스프링은 JDBC 코드 작성을 위해 JdbcTemplate을 기반으로 하는 다양한 템플릿과 콜백을 제공한다.
+템플릿은 한 번에 하나 이상의 콜백을 사용할 수도 있고, 하나의 콜백을 여러번 호출할 수 있다.
+템플릿/콜백을 설계할 때에는 템플릿과 콜백 사이에 주고받는 정보에 관심을 두어야 한다.
+```
+템플릿/콜백은 스프링이 객체지향 설계와 프로그래밍에 얼마나 가치를 두고 있는지를 잘 보여주는 예다.
+얼마나 유연하고 변경이 용이하게 만들고자 하는지를 잘 보여주는 예다.
+이 챕터에서는 추상화(템플릿), 캡슐화(DI)를 통해서
+DI에 녹아있는 캡슐화? -> DataSource가 갖는 세세한 정보를 DataSource를 직접 사용하는 UserDao는 알 필요가 없기 때문
+중첩 클래스의 종류
+스태틱 클래스(static class)
+독립적으로 오브젝트로 만들어질 수 있는 클래스
+내부 클래스(inner class)
+자신이 정의된 클래스와 오브젝트 안에서만 만들어 질 수 있는 클래스
+멤버 내부 클래스 : 멤버 필드처럼 오브젝트 레벨에 정의됨
+로컬 클래스 : 메서드 레벨에 정의됨
+익명 내부 클래스 : 이름을 갖지 않으며 선언된 위치에 따라 범위가 다름
