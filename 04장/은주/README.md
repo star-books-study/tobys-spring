@@ -41,3 +41,8 @@ public void method3() throws Exception ...
 - 예외블랙홀 보단 낫지만 메소드 선언에 throws Exception을 기계적으로 붙이는 게 되면, 결과적으로 **적절한 처리를 통해 복구될 수 있는 예외상황도 제대로 다룰 수 있는 기회를 박탈당한다.**
 
 ### 4.1.2. 예외의 종류와 특징
+- Error
+  - 시스템에 비정상적인 상황이 발생했을 경우
+  - 주로 자바 VM 에서 발생시키는 것이고, 애플리케이션 코드에서 잡으려고 하면 안된다.
+  - OutOfMemoryError 나 ThreadDeath 같은 에러는 catch 로 잡아봤자 대응 방법이 없다.
+- Exception 과 체크 예외
