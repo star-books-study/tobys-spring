@@ -46,3 +46,9 @@ public void method3() throws Exception ...
   - 주로 자바 VM 에서 발생시키는 것이고, 애플리케이션 코드에서 잡으려고 하면 안된다.
   - OutOfMemoryError 나 ThreadDeath 같은 에러는 catch 로 잡아봤자 대응 방법이 없다.
 - Exception 과 체크 예외
+  - 애플리케이션 코드 작업 중에 예외상황 발생했을 경우
+  - `체크 예외` : Exception 클래스의 서브 클래스, **RuntimeException 클래스 상속하지 않은 것**
+  - `언체크 예외` : Exception 클래스의 서브 클래스, **RuntimeException 클래스 상속한 것**
+  - 일반적으로 예외라 함은, 체크 예외라고 생각해도 된다
+  - 체크 예외가 발생할 수 있는 메소드 사용 시 **반드시 예외를 처리하는 코드를 함께 작성**해야 한다
+    - 그렇지 않으면 **컴파일 에러** 가 발생한다
