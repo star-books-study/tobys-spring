@@ -59,7 +59,7 @@ public void method3() throws Exception ...
   - 따라서 예상치 못한 예외상황에서 발생하는 게 아니기 때문에 굳이 catch 나 throws 를 사용하지 않아도 되도록 만든 것이다.
 ### 4.1.3. 예외처리 방법
 #### 예외 복구
-- 예외 상황을 파악하고, 문제를 해결해서 정상 상태로 돌려놓는 것이다
+- 예외 상황을 파악하고, 문제를 해결해서 `정상 상태`로 돌려놓는 것이다
 - 예외로 인해 기본 작업 흐름이 불가능하면 다른 작업 흐름으로 자연스럽게 유도해주면 예외를 복구했다고 볼 수 있다
 - 예외처리 코드를 강제하는 체크 예외들은, **예외를 어떤 식으로든 복구할 가능성이 있는 경우에 사용** 한다
 ```java
@@ -82,3 +82,71 @@ throw new RetryFailedException(); // 최대 재시도 횟수를 넘기면 직접
 - 예외가 발생할 경우 최대횟수만큼 반복적으로 시도함으로써 예외상황에서 복구되게 할 수 있다.
 
 #### 예외처리 회피
+- 예외처리를 **자신이 담당하지 않고 자신을 호출한 쪽으로 던져버리는 것**
+  - catch 문으로 예외를 잡은 후 로그를 남기고 throw (rethrow)
+  - throws 문으로 선언
+- 예외를 자신이 처리하지 않고 회피하는 방법이다
+- 예외처리를 회피하려면 반드시 다른 오브젝트나 메소드가 예외를 대신 처리할 수 있게 던져주어야 한다
+```java
+public void add() throws SQLException {
+  // JDBC API
+}
+
+public void add() throws SQLException {
+  try {
+    // JDBC API
+  catch(SQLException e) {
+    // 로그 출력
+    throw e;
+  }
+}
+```
+- 콜백 오브젝트의 메소드는 SQLException 에 대한 예외를 회피하고 템플릿 레벨에서 처리하도록 던져준다.
+- 하지만 콜백과 템플릿처럼 긴밀하게 역할을 분담하고 있는 관계가 아니라면 자신의 코드에서 발생하는 예외를 그냥 던지는 것은 무책임한 책임회피일 수 있다.
+- 예외를 회피하는 것은 예외를 복구하는 것처럼 의도가 분명해야 한다.
+  - 콜백/템플릿처럼 긴밀한 관계에 있는 다른 오브젝트에게 예외처리 책임을 분명히 지게 하거나,
+  - **자신을 사용하는 쪽에서 예외를 다루는 게 최선의 방법**이라는 분명한 확신이 있어야 한다 
+
+#### 예외 전환
+- 예외 회피처럼 예외를 밖으로 던지지만, **발생한 예외를 그대로 넘기는 게 아니라 적절한 예외로 전환해서 던진다**
+- 주로 2가지 목적으로 사용
+  - 내부에서 발생한 예외를 그대로 던지는 것이 **예외상황에 대한 적절한 의미를 부여하지 못할 경우**에 의미를 분명하게 해줄 수 있는 예외로 변경하기 위해서이다.
+    - SQLException은 DB 연결 실패, 쿼리의 실수, 중복된 아이디 존재 등 다양한 이유로 발생
+    - 추가하려는 아이디가 이미 존재할 때 발생하는 예외는 DuplicateUserIdException 같은 예외로 바꿔서 던져주는 게 좋다
+  - 의미가 분명한 예외가 던져지면, 서비스 계층 오브젝트에는 **적절한 복구 작업을 시도**할 수 있다
+  ```java
+  public void add(User user) throws DuplicatedUserIdException, SQLException{
+      try{
+          ...
+      }catch(SQLException e){
+          if(e.getErrorCode() == MysqlErrorNumbers.ER_DUP_ENTRY)
+              throw DuplicatedUserIdException();
+          else 
+              throw e;
+      }
+  }
+  ```
+  - 보통 전환하는 예외에 원래 발생한 예외를 담아서 `중첩 예외` 로 만드는 것이 좋다
+    - 생성자 또는 initCause() 메소드를 통해 원인이 되는 예외를 내부에 담아서 던진다. 
+    - 주로 **예외처리를 강제하는 체크 예외를 언체크 예외인 런타임 예외로 바꾸는 경우에 사용** 한다
+    ```java
+    catch(SQLException e){
+        ...
+        throw DuplicatedUserIdException(e);
+        throw DuplicatedUserIdException().initCause(e);
+    }
+    ```
+    - 대표적으로 EJBException 이 있는데, EJB 컴포넌트 코드에서 발생하는 대부분의 체크 예외는 비즈니스 로직상 의미있는 예외이거나 복구 가능한 예외가 아니다
+      - 따라서 어차피 복구 불가능한 예외라면 **가능한 빨리 런타임 예외로 포장해 던져서 다른 계층 메소드 작성 시 불필요한 throws 선언이 들어가지 않도록** 해야 한다
+      - 애플리케이션 로직 상에서 예외조건이나 예외 상황 발생할 수도 있는데, 이 때는 `체크예외` 사용하는 것이 적절하다.
+        - 왜냐하면 비즈니스적 의미가 있는 예외는 이에 대한 **적절한 대응이나 복구작업이 필요**하기 때문이다.
+      - 어차피 복구못할 예외라면 애플리케이션 코드에서 포장해서 던지고, 예외 처리 서비스 등을 이용하여 로그 기록 및 운영진에게 알리는 것이 바람직 함
+    ```java
+    try{
+        OrderHome orderHome = EJBHomeFactory.getInstance().getOrderHome();
+        Order order = orderhome.findByPrimaryKey(Integer id);
+    } catch (NamingException ne){
+        throw new EJBException(ne); //체크 예외 -> 런타임 예외
+    }
+    ```
+### 4.1.4. 예외처리 전략 
