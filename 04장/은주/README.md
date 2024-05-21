@@ -161,3 +161,46 @@ public void add() throws SQLException {
   - throws Exception 이 달린 아무런 의미없는 메소드들만 낳을 뿐이다
   - **대응 불가능한 체크 예외라면 빨리 런타임 예외로 전환해서 던지는 게 낫다**
 - 예전에는 복구 가능성이 조금이라도 있다면 체크 예외로 만들었는데, 지금은 **항상 복구할 수 있는 예외가 아니라면 일단 언체크 예외로 만드는** 경향이 있다
+
+#### add() 메소드의 예외처리
+```java
+public void add(User user) throws DuplicatedUserIdException, SQLException{
+    try{
+      ...
+    } catch(SQLException e){
+      if(e.getErrorCode() == MysqlErrorNumbers.ER_DUP_ENTRY)
+        throw DuplicatedUserIdException();
+      else 
+        throw e;
+    }
+}
+```
+- DuplicatedUserIdException 은 충분히 복구 가능한 예외니까 add() 사용부에서 잡아서 대응할 수 있다.
+  - 하지만 SQLException 의 경우 대부분 복구 불가능한 예외이므로, throws 를 타고 전달되다가 애플리케이션 밖으로 던져질 것이다
+  - 그럴 바에는 `런타임 예외` 로 포장해 던져서 그밖의 메소드가 신경쓰지 않게 해주는 게 낫다
+- DuplicatedUserIdException 도 굳이 체크예외로 두지 않아도 된다.
+  - add() 메소드 호출부보다 더 앞단의 오브젝트에서 다룰 수도 있고, **어디에서든 잡아서 처리할 수만 있다면 굳이 체크예외로 안만들고 런타임예외로 만드는 게 낫다**
+  - 대신 add() 메소드는 명시적으로 DuplicatedUserIdException 를 던진다고 선언해야 개발자에게 의미있는 정보 전달이 가능하다
+
+```java
+public class DuplicateUserldException extends RuntimeException {
+  public DuplicateUserldException(Throwable cause) {
+    super(cause);
+  }
+}
+
+public void add() throws DuplicatedUserIdException {
+    try{
+      ...
+    } catch(SQLException e){
+      if(e.getErrorCode() == MysqlErrorNumbers.ER_DUP_ENTRY)
+        throw DuplicatedUserIdException(e); // 예외 전환
+      else 
+        throw new RuntimeException(e); // 예외 포장
+    }
+}
+```
+- DuplicatedUserIdException 도 필요 없다면 신경쓰지 않도록 RuntimeException 을 상속한 `런타임 예외` 로 만들어 준다
+- 이제 DuplicatedUserIdException 외에 시스템 예외에 해당하는 SQLException 은 `언체크 예외` 가 되었다
+- 런타임 예외로 수정하여 언체크 예외로 만들기는 했지만 add() 사용부에서 아이디 중복 예외 처리하고 싶을 경우 활용할 수 있음을 알리기 위해 throws 선언에 포함한다
+- **런타임 예외를 일반화해서 사용하면, 컴파일러가 예외처리를 강제하지 않으므로 사용에 더 주의를 기울일 필요도 없다**
