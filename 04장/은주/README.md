@@ -223,3 +223,6 @@ public void add() throws DuplicatedUserIdException {
 - 스프링 API 메소드에 정의된 대부분의 예외는 런타임 예외이다
 
 ## 4.2. 예외 전환
+- 예외 전환의 2가지 목적
+  - 런타임 예외로 포장해서 굳이 필요하지 않은 catch/throws 를 줄이는 것
+  - 로우레벨 예외를 좀 더 의미 있고 추상화된 예외로 바꿔서 던지는 것
