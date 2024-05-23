@@ -247,3 +247,96 @@ try {
 
 - 한 번에 다수의 사용자가 접근하여 해당 서비스를 이용하기 때문에 작업을 중지하고 예외 상황을 복구할 수 없다!
 - 어플리케이션 차원에서 예외상황을 파악하고 요청에 대한 작업을 취소하는 편이 좋다.
+
+#### 서버 환경
+
+- 한 번에 다수의 사용자가 접근하여 해당 서비스를 이용하기 때문에 작업을 중지하고 예외 상황을 복구할 수 없다!
+- 어플리케이션 차원에서 예외상황을 파악하고 요청에 대한 작업을 취소하는 편이 좋다.
+
+### add() 메소드의 예외처리
+
+```java
+public class DuplicateUserIdException extends RuntimeException{
+    public DuplicateUserIdException(Throwable cause) {
+        super(cause);
+    }
+}
+```
+```java
+public void add() throws DuplicateUserIdException {
+  try {
+    // 
+  }
+  catch (SQLException e) {
+    if (e.getErrorCode() == MysqlErrorNumbers.ER_DUP_ENTRY)
+      throw new DuplicateUserIdException(e); // 예외 전환
+    else
+      throw new RuntimeException(e); // 예외 포장
+  }
+}
+```
+- DuplicatedUserIdException도 굳이 체크 예외로 둬야 하는 것은 아니다.
+
+- DuplicatedUserIdException처럼 의미 있는 예외는 add() 메소드를 바로 호출한 오브젝트 대신 더 앞단의 오브젝트에서 다룰 수도 있다.
+- 어디에서든 DuplicatedUserIdException을 잡아서 처리할 수 있다면 굳이 체크 예외로 만들지 않고 런타임 예외로 만드는 게 낫다.
+- 대신 add() 메소드가 DuplicatedUserIdException 을 던진다고 명시적으로 선언해야 한다. 런타임 예외도 throws로 선언 가능하다!
+
+### 런타임 예외를 일반화 시 단점
+
+- 컴파일러가 예외처리를 강제하지 않으므로 신경쓰지 않으면 예외 상황을 충분히 고려하지 않을 수 있다.
+- 런타임 예외를 사용하는 경우엔 API 문서, 레퍼런스 문서 등을 통해 메소드를 사용할 때 발생할 수 있는 예외의 종류와 원인, 활용 방법을 자세히 설명해두자.
+
+### 어플리케이션 예외
+
+- 런타임 예외 중심 전략은 굳이 이름을 붙이자면 낙관적 예외처리 기법이다.
+
+- 복구할 수 있는 예외는 없다고 가정한다.
+- 예외가 생겨도 어차피 런타임 예외 이므로 시스템에서 알아서 처리해줄 것이고, 꼭 필요한 경우는 런타임 예외라도 잡아서 복구하거나 대응할 수 있으니 문제될 것이 없다는 낙관적 태도를 기반으로 한다.
+- 혹시 놓치는 예외가 있을까 처리를 강제하는 체크 예외의 비관적인 접근 방법과 대비된다.
+- 반면 어플리케이션 예외도 있다.
+
+- 시스템 혹은 외부 상황이 원인이 아닌 애플리케이션 자체의 로직에 의한 예외이다.
+- 반드시 catch 해서 무엇인가 조치를 취하도록 요구한다.
+
+```java
+try {
+  BigDecimal balance = account.withdraw(amount);
+  ...
+  // 정상적인 처리 결과를 출력하도록 진행
+}
+catch(InsufficientBalanceException e) { // 체크 예외
+  // InsufficientBalanceException에 담긴 인출 가능한 잔고 금액 정보를 가져옴
+  BigDecimal availFunds = e.getAvailFunds();
+  ...
+  // 잔고 부족 안내 메세지를 준비하고 이를 출력하도록 진행
+}
+```
+## 1-5. SQLException 은 어떻게 됐나?
+
+- 앞서 체크 예외와 언체크 예외를 배워보았다.
+
+- 코드 레벨에서 복구 방법이 없는 경우 예외 전환을 통해 언체크 예외를 던져버리는 편이 낫다는 것을 배웠다.
+- 런타임 예외의 보편화와 함께 만일 비즈니스적으로 더 명확한 의미를 줄 수 있는 경우에는 의미를 분명하게 전달할 수 있는 예외를 만들고 중첩 예외로 던져버리는 편이 낫다는 결론을 얻었다.
+- 복구 불가능한 예외를 괜히 체크 예외로 만들면 나쁜 예외처리 습관을 가진 개발자에 의해 더 최악의 시나리오가 발생할 수도 있다.
+
+### SQLException은 복구 불가능
+
+- 일반적으로 해당 예외가 발생하는 이유는 SQL 문법이 틀렸거나, 제약조건을 위반했거나, DB 서버가 다운됐거나, 네트워크가 불안정하거나, DB 커넥션 풀이 꽉 찬 경우 등이다.
+- 따라서 언체크/런타임 에러로 전환해야 한다!
+### 스프링 런타임 예외 보편화 전략
+
+- 스프링 API 메소드에 정의되어 있는 대부분의 예외는 런타임 예외이다.
+
+- SQLException이 사라진 이유는 스프링의 JdbcTemplate은 런타임 예외의 보편화 전략을 따르고 있기 때문이다.
+
+- JdbcTemplate 템플릿과 콜백 안에서 발생하는 모든 SQLException을 런타임 예외인 DataAccessException으로 포장해서 던져준다.
+
+- JdbcTemplate의 update(), queryForInt(), query() 메소드 선언을 잘 살펴보면 모두 throws DataAccessException이라고 되어 있음을 발견할 수 있다.
+
+```java
+public int update(final String sql) throws DataAccessException {
+    //...
+}
+```
+- throws로 선언되어 있긴 하지만 DataAccessException이 런타임 예외이므로 update()를 사용하는 메소드에서 이를 잡거나 다시 던질 이유는 없다.
+
