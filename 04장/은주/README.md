@@ -226,3 +226,10 @@ public void add() throws DuplicatedUserIdException {
 - 예외 전환의 2가지 목적
   - 런타임 예외로 포장해서 굳이 필요하지 않은 catch/throws 를 줄이는 것
   - 로우레벨 예외를 좀 더 의미 있고 추상화된 예외로 바꿔서 던지는 것
+
+### 4.2.1. JDBC 의 한계
+- 내부 구현은 DB마다 다르겠지만, JDBC 의 Connection, Statement, ResultSet 등의 `표준 인터페이스`를 통해 그 기능을 제공해주기 때문에 DB 종류와 관계없이 **일관된 방법** 으로 프로그램을 개발할 수 있다.
+- JDBC API 가 DB 프로그램 개발 방법을 학습하는 부담은 줄여주지만, DB 를 자유롭게 변경해서 사용할 수 있는 유연한 코드를 보장해주진 못한다
+
+#### 비표준 SQL
+- 
