@@ -340,3 +340,10 @@ public int update(final String sql) throws DataAccessException {
 ```
 - throws로 선언되어 있긴 하지만 DataAccessException이 런타임 예외이므로 update()를 사용하는 메소드에서 이를 잡거나 다시 던질 이유는 없다.
 
+🚀## 4-2.예외 전환
+🥺### 4-2-1. JDBC의 한계
+
+- JDBC는 Connection, Statement, ResultSet 등의 표준 인터페이스로 기능을 제공한다. 따라서 개발자들은 DB 종류와 상관없이 일관된 방법으로 프로그래밍이 가능하다. 객체지향적 프로그래밍이 가능하다.
+
+- 하지만, DB 종류에 따라 데이터 액세스 코드가 달라질 수 있다.
+
