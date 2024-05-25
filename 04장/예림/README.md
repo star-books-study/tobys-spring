@@ -340,8 +340,37 @@ public int update(final String sql) throws DataAccessException {
 ```
 - throws로 선언되어 있긴 하지만 DataAccessException이 런타임 예외이므로 update()를 사용하는 메소드에서 이를 잡거나 다시 던질 이유는 없다.
 
-🚀## 4-2.예외 전환
-🥺### 4-2-1. JDBC의 한계
+## 4-2.예외 전환
+### 4-2-1. JDBC의 한계
+- JDBC는 Connection, Statement, ResultSet 등의 표준 인터페이스로 기능을 제공한다. 따라서 개발자들은 DB 종류와 상관없이 일관된 방법으로 프로그래밍이 가능하다. 객체지향적 프로그래밍이 가능하다.
+
+- 하지만, DB 종류에 따라 데이터 액세스 코드가 달라질 수 있다.
+
+#### 비표준 SQL
+
+- DB마다 SQL 비표준 문법이 제공된다. 페이지네이션이나 쿼리 조건 관련 추가적인 문법이 있을 수 있다.
+
+- 만약 작성된 비표준 SQL이 DAO 코드에 들어간다면, 해당 DAO는 특정 DB에 종속적인 코드가 된다!
+
+- 이를 해결하기 위해서는
+
+  호환되는 표준 SQL만 사용 → 페이징 쿼리부터 못쓴다.
+  DB 별 DAO 만들기
+  SQL을 독립시켜 DB에 따라 변경 가능하게 만들기
+  해당 방법은 7장에서 다뤄볼 예정이다.
+
+#### 호환성 없는 SQLException의 DB 에러 정보
+
+- DB마다 에러의 종류, 원인이 제각각이다.
+
+```java
+// MySQL에서 중복된 키를 가진 데이터를 입력하려고 시도했을 때
+if (e.getErrorCode() == MysqlErrorNumbers.ER_DUP_ENTRY) { ...
+```
+- JDBC는 SQLException에 해당 에러들을 담는다.
+- 그런데 이마저도 SQLException.getErrorCode()로 에러 코드를 가져왔을 때, DB 벤더마다 에러코드가 달라서 각각 처리해주어야 한다.
+getSQLState()와 같은 메소드로 예외 상황에 대한 상태 정보를 가져올 수 있지만, 해당 값을 신뢰하기 힘들다. 어떤 DB는 표준 코드와 상관없는 엉뚱한 값이 들어있기도 하다.
+- 결과적으로 SQL 상태 코드를 믿고 결과를 파악하도록 코드를 작성하는 것은 위험하다. 결국 호환성 없는 에러 코드와 표준을 잘 따르지 않는 상태 코드를 가진 SQLException만으로 DB에 독립적인 유연한 코드를 작성하는 것은 불가능에 가깝다.
 
 - JDBC는 Connection, Statement, ResultSet 등의 표준 인터페이스로 기능을 제공한다. 따라서 개발자들은 DB 종류와 상관없이 일관된 방법으로 프로그래밍이 가능하다. 객체지향적 프로그래밍이 가능하다.
 
