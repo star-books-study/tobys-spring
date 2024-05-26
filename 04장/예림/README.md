@@ -376,3 +376,198 @@ getSQLState()와 같은 메소드로 예외 상황에 대한 상태 정보를 �
 
 - 하지만, DB 종류에 따라 데이터 액세스 코드가 달라질 수 있다.
 
+
+### 4-2-2. DB 에러 코드 매핑을 통한 전환
+- 스프링은 DataAccessException의 서브 클래스로 세분화된 예외 클래스들을 정의하고 있다.
+
+- SQL 문법 : BadSqlGrammerException
+- DB 커넥션 : DataAcessResourceFailureException
+- 데이터의 제약조건을 위배했거나 일관성을 지키지 못함 : DataIntegrityViolationException
+- 그 중에서도 중복 키 때문에 발생한 경우 : DuplicatedKeyException
+
+- 그런데 문제가 있다. DB마다 에러 코드가 다르다. => 이를 해결하기 위해, DB별 에러 코드를 참고해 발생한 예외 원인을 해석해줄 해석기가 필요하다!
+
+#### 스프링 코드 매핑 테이블
+
+```xml
+
+<bean id="Oracle" class="org.springframework.jdbc.support.SQLErrorCodes">
+        <property name="badSqlGrammarCodes">
+            <value>900,903,904,917,936,942,17006,6550</value>
+        </property>
+        <property name="invalidResultSetAccessCodes">
+            <value>17003</value>
+        </property>
+        <property name="duplicateKeyCodes">
+            <value>1</value>
+        </property>
+        <property name="dataIntegrityViolationCodes">
+            <value>1400,1722,2291,2292</value>
+        </property>
+        <property name="dataAccessResourceFailureCodes">
+            <value>17002,17447</value>
+        </property>
+        <property name="cannotAcquireLockCodes">
+            <value>54,30006</value>
+        </property>
+        <property name="cannotSerializeTransactionCodes">
+            <value>8177</value>
+        </property>
+        <property name="deadlockLoserCodes">
+            <value>60</value>
+        </property>
+</bean>
+```
+- 이를 통해, JdbcTemplate은 DB 에러 코드를 적절한 DataAccessException 서브클래스로 매핑한다.
+
+```java
+public void add(User user) throws DuplicateKeyException {
+    this.jdbcTemplate.update("insert into users(id, name, password) values (?, ?, ?)"
+            , user.getId()
+            , user.getName()
+            , user.getPassword()
+    );
+}
+public void add(User user) throws DuplicateUserIdException {
+    try {
+        this.jdbcTemplate.update("insert into users(id, name, password) values (?, ?, ?)"
+                , user.getId()
+                , user.getName()
+                , user.getPassword()
+        );
+    } catch (DuplicateKeyException e) {
+        throw new DuplicateUserIdException(e);
+    }
+}
+```
+- 위와 같이 더 명확한 예외 클래스로 예외전환도 가능하다.
+
+### 4-2-3. DAO 인터페이스와 DataAccessException 계층 구조
+- DataAcessException은 의미가 같은 예외라면 데이터 액세스 기술의 종류와 상관없이 일관된 예외가 발생하도록 만들어준다.
+
+- 데이터 액세스 기술에 독립적인 추상화된 예외를 제공하는 것이다.
+
+#### DAO 인터페이스와 구현의 분리
+
+- DAO를 인터페이스로 분리하면, 내부의 데이터 액세스 기술에 의존하지 않게 된다. POJO를 주고받으며 데이터 액세스 기능을 사용하기만 하면 된다. 이때 우리는 DAO 안에서 throw하지 않는다.
+- 만약 throw를 한다면?
+
+```java
+public interface UserDao {
+  public void add(User user) throws SQLException;
+}
+자바 DATA 접근 API가 바뀔 시 인터페이스도 바뀐다.
+
+public interface UserDao {
+  public void add(User user) throws PersistentException; // JPA
+  public void add(User user) throws HibernateException; // Hibernate
+  public void add(User user) throws JdoException; // JDO
+}
+```
+- 이를 통해 DAO 사용 기술에 독립적인 인터페이스 선언이 가능해졌다.
+
+#### 데이터 엑세스 예외 추상화와 DataAcessException 계층구조
+
+- 스프링은 자바의 다양한 데이터 액세스 기술을 사용할 때 발생하는 예외들을 추상화해서 DataAcessException 계층구조 안에 정리해놓았다
+
+- JdbcTemplate과 같이 스프링의 데이터 액세스 지원 기술을 이용해 DAO를 만들면, 사용 기술에 독립적인 일관성 있는 예외를 던질 수 있다.
+
+- 결국 인터페이스 사용, 런타임 예외 전환과 함께 DataAccessException 예외 추상화를 적용하면 데이터 액세스 기술과 구현 방법에 독립적인 이상적인 DAO를 만들 수 있다.
+
+### 4-2-4. 기술에 독립적인 UserDao 만들기
+
+#### 인터페이스 적용
+- setDataSource() 메소드는 인터페이스에 추가하면 안된다.
+- UserDao의 구현 방법에 따라 변경될 수 있는 메소드이다.
+- UserDao를 사용하는 클라이언트가 알고 있을 필요도 없다. 이후 빈 클래스를 변경하면 된다!
+
+```java
+public interface UserDao {
+    void add(User user);
+    User get(String id);
+    User getByName(String name);
+    List<User> getAll();
+    void deleteAll();
+    int getCount();
+}
+```
+```xml
+<bean id="dataSource" class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
+    <property name="username" value="postgres" />
+    <property name="password" value="iwaz123!@#" />
+    <property name="driverClass" value="org.postgresql.Driver" />
+    <property name="url" value="jdbc:postgresql://localhost/toby_spring" />
+</bean>
+
+<bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+    <property name="dataSource" ref="dataSource" />
+</bean>
+
+<bean id="userDao" class="toby_spring.user.dao.UserDaoJdbc">
+    <property name="jdbcTemplate" ref="jdbcTemplate" />
+</bean>
+```
+- 테스트는 굳이 수정해줄 필요 없다. @Autowired 를 통해 자동으로 빈을 주입받는다.
+
+#### DataAccessException 활용 시 주의사항
+
+- 이렇게 스프링을 활용하면 DB 종류나 데이터 액세스 기술에 상관없이 키 값이 중복이 되는 상황에서는 동일한 예외가 발생하리라고 기대할 것이다.
+- 하지만 안타깝게도 DuplicateKeyException은 JDBC를 이용하는 경우에만 발생한다!
+
+- 데이터 액세스 기술을 하이버네이트나 JPA를 사용했을 때도 동일한 예외가 발생할 것으로 기대하지만 실제로 다른 예외가 던져진다.
+- 예를 들어 하이버네이트는 중복 키가 발생하는 경우에 하이버네이트의 ConstraintViolationException을 발생시킨다.
+- 따라서, DataAccessException을 잡아서 처리하는 코드를 만들려고 한다면 미리 학습 테스트를 만들어서 실제로 전환되는 예외의 종류를 확인해 둘 필요가 있다.
+
+🙋‍♀️ 만약 DAO에서 사용하는 기술의 종류와 상관없이 동일한 예외를 얻고 싶다면?
+
+- DuplicatedUserIdException처럼 직접 예외를 정의해두고, 각 DAO의 add() 메소드에서 좀 더 상세한 예외 전환을 해주면 된다.
+
+#### Jdbc에서 SQLException 해석해보기
+
+- SQLErrorCodeSQLExceptionTranslator 를 통해 SQLException를 DB, 데이터 접근 기술에 따라 해석할 수 있다!
+```java
+@Test
+@DisplayName("SQLException DB 에러코드 해석기로 DataAccessException 해석해보기")
+public void sqlExceptionTranslate() {
+    try {
+        userDao.add(user1);
+        userDao.add(user1);
+    }catch(DataAccessException ex) {
+        SQLException sqlEx = (SQLException) ex.getRootCause();
+        SQLExceptionTranslator set =
+                new SQLErrorCodeSQLExceptionTranslator(this.dataSource);
+
+        DataAccessException translate = set.translate(null, null, sqlEx);
+        Assertions.assertEquals(DuplicateKeyException.class, translate.getClass());
+    }
+}
+```
+
+단, 이때 DataSource를 인자로 주지 않을 시, 더욱 포괄적인 에러인 DataIntegrityViolationException 가 결과로 나온다!
+
+```java
+@Test
+public void save() {
+    try {
+        Item item = new Item("A");
+        Item item2 = new Item("A");
+        itemRepository.save(item);
+        itemRepository.save(item2);
+    } catch(DataAccessException e) {
+        SQLException sqlException = (SQLException) e.getRootCause();
+        SQLExceptionTranslator set = new SQLErrorCodeSQLExceptionTranslator(dataSource);
+        DataAccessException translate = set.translate(null, null, sqlException);
+        assertThat(translate.getClass()).isEqualTo(DuplicateKeyException.class);
+    }
+}
+```
+## 4-3. 정리
+- 예외를 잡아서 아무런 조취를 취하지 않거나 의미 없는 throws 선언을 남발하는 것은 위험 하다.
+- 예외는 복구하거나 예외처리 오브젝트로 의도적으로 전달하거나 적절한 예외로 전환해야 한다.
+- 좀 더 의미 있는 예외로 변경하거나, 불필요한 catch/throws를 피하기 위해 런타임 예외로 포장하는 두 가지 방법의 예외 전환이 있다.
+- 복구할 수 없는 예외는 가능한 한 빨리 런타임 예외로 전환하는 것이 바람직하다.
+- 애플리케이션의 로직을 담기 위한 예외는 체크 예외로 만든다.
+- JDBC의 SQLException은 대부분 복구할 수 없는 예외이므로 런타임 예외로 포장해야 한다.
+- SQLException의 에러 코드는 DB에 종속되기 때문에 DB에 독립적인 예외로 전환될 필요가 있다.
+- 스프링은 DataAccessException을 통해 DB에 독립적으로 적용 가능한 추상화된 런타임 예외 계층을 제공한다.
+- DAO를 데이터 액세스 기술에서 독립시키려면 인터페이스 도입과 런타임 예외 전환, 기술에 독립적인 추상화된 예외로 전환이 필요하다.
