@@ -14,4 +14,100 @@
  
 ### 5.1.1 필드 추가
 
-#### Level 이늄
+#### Level 이넘
+- 레벨을 상수로 설정하면 다른 종류의 정보를 넣는 실수를 해도 컴파일러가 체크해주지 못하고, 엉뚱한 레벨이 들어갈 수도 있다.
+  => 이넘 사용이 안전
+```java
+// 5-3. 사용자 레벨용 enum
+public enum Level {
+  BASIC(1), SILVER(2), GOLD(3); // 세 개의 enum 오브젝트 정의
+
+  private final int value;
+
+  Level(int value) { // DB에 저장할 값을 넣어줄 생성자
+    this.value = value;
+  }
+
+ public static Level valueOf(int value) { // 값으로부터 타입 오브젝트를 가져오도록 만든 스태틱 메서드
+  switch(value) {
+    case 1: return BSIC;
+    case 2: return SILVER;
+    case 3: return GOLD;
+    default: throw new AssertionError("Unknown value: " + value);
+  }
+}
+```
+
+#### User 필드 추가
+- Level 타입의 변수를 User 클래스에 추가한다.
+- 로그인 횟수와 추천 수도 추가하자.
+
+```java
+// 5-4. User에 추가된 필드
+public class User {
+  ...
+  Level level;
+  int login;
+  int recommend;
+
+  public Level getValue() {
+    return level;
+  }
+
+  public void setLevel(Level level) {
+    this.level = level;
+  }
+  ...
+  // login, recommedn getter, setter 생략
+```
+
+#### UserDaoTest 수정
+기존 코드에 새로운 기능을 추가하려면 테스트를 먼저 만드는 것이 안전
+
+```java
+// 5-5. 수정된 테스트 픽스처
+public class UserDaoTest {
+  ...
+  @Before
+  public void setUp() {
+    this.user1 = new User("gyumee", "박성철", "springno1", Level.BASIC, 1, 0);
+    ...
+  }
+```
+
+이에 맞게 User 클래스의 생성자 파라미터도 추가해준다.
+
+```java
+// 5-6. 추가된 필드를 파라미터로 포함하는 생성자
+class User {
+  ...
+  public User(String id, String name, String password, Level level, int login, int recommend) {
+  this.id = id;
+  ...
+  }
+}
+```
+
+UserDaoTest에서 두 개의 User 오브젝트 필드 값이 모두 같은지 비교하는 checkSameUser() 메서드를 수정한다.
+
+```java
+// 5-7. 새로운 필드를 포함하는 User 필드 값 검증 메서드
+public void checkSameUser(User user1, User user2) {
+  assertThat(user1.getId(), is(user2.getId()));
+  ...
+  assertThat(user1.getLevel(), is(user2.getLevel()));
+  ... login, recommand 필드 값 검증
+}
+```
+기존에는 테스트 메서드에서 직접 assertThat을 사용했지만 필드도 추가됐고 이제 필드가 늘어나도 User 오브젝트 비교 로직을 일정하게 유지할 수 있도록 checkSameUser()를 이용해 다음과 같이 수정한다.
+```java
+@Test
+public void addAndGet() {
+  ...
+  User userget1 = dao.get(user1.getId());
+  checkSameUser(userget1, user1);
+
+  User userget2 = dao.get(user2.getId());
+  checkSameUser(userget2, user2);
+}
+```
