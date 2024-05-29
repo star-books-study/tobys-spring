@@ -101,6 +101,7 @@ public void checkSameUser(User user1, User user2) {
 ```
 기존에는 테스트 메서드에서 직접 assertThat을 사용했지만 필드도 추가됐고 이제 필드가 늘어나도 User 오브젝트 비교 로직을 일정하게 유지할 수 있도록 checkSameUser()를 이용해 다음과 같이 수정한다.
 ```java
+// 5-8. checkSameUser() 메서드를 사용하도록 addAndGet() 메서드
 @Test
 public void addAndGet() {
   ...
@@ -111,3 +112,30 @@ public void addAndGet() {
   checkSameUser(userget2, user2);
 }
 ```
+
+#### UserDaoJdbc 수정
+```java
+// 추가된 필드를 위한 UserDaoJdbc의 수정 코드
+class public UserDaoJdbc implements UserDao {
+  ...
+  private RowMapper<User> userMapper =
+   new RowMapper<User>() {
+      public User MapRow(ResultSet rs, int rowNum) throws SQLException {
+        User user = new User();
+        user.setId(rs.getString("id"));
+        user.setName(rs.getString("name"));
+        ...
+        user.setLevel(Level.valueOf(rs.getInt("level")));
+        ...
+        return user;
+    }
+  };
+  public void add(User user) {
+    this.jdbcTemplate.update(
+      "insert into users(id, name, password, level, login, recommend) " +
+      "values(?,?,?,?,?,?)", user.getId(), user.getName(),
+      user.getPassword(), user.getLevel().intValue(),
+      user.getLogin(), user.getRecoomend());
+}
+```
+
