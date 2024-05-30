@@ -138,4 +138,5 @@ class public UserDaoJdbc implements UserDao {
       user.getLogin(), user.getRecoomend());
 }
 ```
+- 먼저 매핑을 위와 같이 수정해준다. 이제 DB에서 데이터를 불러왔을 때 User 객체에는 잘 반영될 것이다.
 
