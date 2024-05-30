@@ -11,3 +11,15 @@
 - 코드가 `무엇을 하는 지` 이해하기 편리한가
 - 코드가 자신이 있어야 할 자리에 있는가
 - 앞으로 변경이 일어난다면 어떤 것이며, 변경에 쉽게 대응가능한가
+
+#### upgradeLevels() 리팩토링
+```java
+public void upgradeLevels() {
+  List<User> users : users) {
+    if (canUpgradeLevel(user)) {
+      upgradeLevel(user);
+    }
+  }
+}
+```
+- 
