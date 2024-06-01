@@ -32,8 +32,61 @@ public boolean canUpgradeLevel(User user) {
     case GOLD:
       return false;
     default:
-      throw new IllegalArgumentException("Unknown Level: " + currentLevel);
+      throw new IllegalArgumentException("Unknown Level: "+ currentLevel);
+  }
+}
+
+private void upgradeLevel(User user) {
+  if (user.getLevel() == Level.BASIC) 
+    user.setLevel(Level.SILVER); 
+  else if (user.getLevel() == Level.SILVER) 
+    user.setLevel(Level.GOLD); 
+  userDao.update(user);
+}
+```
+- 하지만 upgradeLevel() 메소드는 여러 문제점이 존재한다
+  - 다음 레벨이 무엇인지에 대한 로직과 사용자 오브젝트 level 필드를 변경하는 로직이 함께 존재한다
+  - 잘못된 레벨이 들어온 상황에 대한 예외 처리가 없다  
+- 레벨의 순서와 `다음 단계 레벨이 무엇인지 결정`하는 일은 level 에게 맡긴다
+```java
+public enum Level {
+  GOLD(3, null), SILVER(2, GOLD), BASIC(1, SILVER);
+  private final int value; 
+  private final Level next; // 다음 단계 레벨 표현
+  ...
+}
+```
+- 사용자 오브젝트의 level 필드를 변경하는 로직은 User 에게 맡긴다
+  - UserService 가 일일이 업그레이드 시 User의 어떤 필드를 수정한다는 로직을 갖고 있기 보다는 User 에게 정보를 변경하라고 요청하는 것이 낫다
+```java
+// User 객체의 메소드
+public void upgradeLevel() {
+  Level nextLevel = this.level.nextLevel(); 
+  if (nextLevel == null) {
+    throw new IllegalStateException(...);
+  }
+  else {
+    this.level = nextLevel;
   }
 }
 ```
+- User에 업그레이드 작업을 담당하는 **독립적인 메소드를 두고 사용할 경우, 업그레이드 시 기타 정보가 필요할 경우 유용하다**
+  - ex) 가장 최근에 레벨 변경 일자를 User에 저장하고 싶은 경우
+```java
+// AS-IS
+private void upgradeLevel(User user) {
+  if (user.getLevel() == Level.BASIC) 
+    user.setLevel(Level.SILVER); 
+  else if (user.getLevel() == Level.SILVER) 
+    user.setLevel(Level.GOLD); 
+  userDao.update(user);
+}
 
+// TO-BE
+private void upgradeLevel(User user) {
+  user.upgradeLevel();
+  userDao.update(user);
+}
+```
+- 객체지향적인 코드는 다른 오브젝트의 데이터를 가져와서 작업하는 대신, **데이터를 갖고 있는 다른 오브젝트에게 작업을 해달라고 요청** 하는 것이다
+  - 오브젝트에게 데이터를 요구하지 말고, `작업을 요청하라` 는 것이 객체지향 프로그래밍의 가장 기본이 되는 원리이다
