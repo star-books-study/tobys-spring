@@ -264,3 +264,387 @@ public class UserServiceTest {
 
 ```java
 // 5-18. 사용자 레벨 업그레이드 메서드
+public void upgradeLevels() {
+        List<User> users = userDao.getAll();
+
+        for (User user : users) {
+            Boolean changed = null;
+
+            if (user.getLevel() == Level.BASIC && user.getLoginCount() >= 50) {
+                user.setLevel(Level.SILVER);
+                changed = true;
+            } else if (user.getLevel() == Level.SILVER && user.getRecommendCount() >= 30) {
+                user.setLevel(Level.GOLD);
+                changed = true;
+            } else if (user.getLevel() == Level.GOLD) {
+                changed = false;
+            } else {
+                changed = false;
+            }
+
+            if(changed) {
+                userDao.update(user);
+            }
+        }
+    }
+```
+- 어쩌다가 위와 같은 메소드를 만들었다고 생각해보자. 중복된 코드는 좀 나오고 책임의 분리도 잘 안되어있지만 비즈니스 로직이 명확히 보이고 아마 제대로 동작할 것이다.
+
+#### upgradeLevels() 테스트
+```java
+// 5-19. 리스트로 만든 테스트 픽스처
+
+class UserServiceTest {
+
+  ...
+  List<User> users; // 테스트 픽스처
+
+  @Before
+  public void setUp() {
+      users = Arrays.asList(
+              new User("bumjin", "박범진", "p1", Level.BASIC, 49, 0)
+              , new User("joytouch", "강명성", "p2", Level.BASIC, 50, 0)
+              , new User("erwins", "신승한", "p3", Level.SILVER, 60, 29)
+              , new User("madnite1", "이상호", "p4", Level.SILVER, 60, 30)
+              , new User("green", "오민규", "p5", Level.GOLD, 100, 100)
+      );
+  }
+```
+```java
+// 5-20. 사용자 레벨 업그레이드 테스트
+@Test
+public void upgradeLevels() {
+    userDao.deleteAll();
+    for (User user : users) {
+        userDao.add(user);
+    }
+
+    userService.upgradeLevels();
+
+    // 각 사용자별로 업그레이드 후의 예상 레벨 검증
+    checkLevel(users.get(0), Level.BASIC);
+    checkLevel(users.get(1), Level.SILVER);
+    checkLevel(users.get(2), Level.SILVER);
+    checkLevel(users.get(3), Level.GOLD);
+    checkLevel(users.get(4), Level.GOLD);
+}
+
+// DB에서 사용자 정보를 가져와 레벨을 확인하는 코드가 중복되어 헬퍼 메서드로 분리
+private void checkLevel(User user, Level expectedLevel) {
+    User userUpdate = userDao.get(user.getId());
+    Assertions.assertEquals(userUpdate.getLevel(), expectedLevel);
+}
+```
+
+### 5.1.4 UserService.add()
+- 처음 가입하는 사용자는 기본적으로 BASIC 레벨이어야 한다는 요구사항을 충족시켜보자.
+
+- 현재는 단순히, 받은 Level을 적용시키도록 하고 있다. 그렇다면만일 레벨 정보가 null이라면, Level.BASIC을 넣도록 할까? 그건 옳지 않을 것이다. UserDao는 온전히 데이터의 CRUD를 다루는 데만 치중하는 것이 옳고, 비즈니스 로직이 섞이는 것은 바람직하지 않다.
+
+- 차라리 User 클래스에서 level 필드를 기본 값으로 Level.BASIC으로 초기화해보자. 하지만 처음 가입할 때를 제외하면 무의미한 정보인데, 단지 이 로직을 담기 위해 클래스에서 직접 초기화하는 것은 문제가 있어 보이긴 한다.
+
+- 그렇다면 UserService에 이 로직을 넣으면 어떨까? UserDao의 add() 메소드는 사용자 정보를 담은 User 오브젝트를 받아서 DB에 넣어주는 데 충실한 역할을 한다면, UserService에도 add()를 만들어두고 사용자가 등록될 때 적용할만한 비즈니스 로직을 담당하게 하면 될 것이다.
+
+- UserDao와 같이 리포지토리 역할을 하는 클래스를 컨트롤러에서 바로 쓰냐 마냐에 대한 논쟁이 있는데, 바로 쓰면 아무런 비즈니스 로직이 들어가지 않은 순수한 CRUD의 의미일 것이다.
+
+- 먼저 테스트부터 만들어보자. UserService의 add()를 호출하면 레벨이 BASIC으로 설정되는 것이다. 그런데, UserService의 add()에 전달되는 User 오브젝트에 Level 값이 미리 설정되어 있다면, 설정된 값을 이용하도록 하자.
+
+- 그렇다면 테스트 케이스는 두가지 종류가 나올 수 있다.
+
+- 레벨이 미리 설정된 경우
+  - 설정된 레벨을 따른다.
+- 레벨이 미리 설정되지 않은 경우 (레벨이 비어있는 경우)
+  - BASIC 레벨을 갖는다.
+
+- 각각 add() 메소드를 호출하고 결과를 확인하도록 만들자.
+
+- 가장 간단한 방법은 UserService의 add() 메소드를 호출할 때 파라미터로 넘긴 User 오브젝트에 level 필드를 확인해보는 것이고, 다른 방법은 UserDao의 get() 메소드를 이용해서 DB에 저장된 User 정보를 가져와 확인하는 것이다. 두가지 다 해도 좋고, 후자만 해도 괜찮을 것 같다.
+
+- UserService는 UserDao를 통해 DB에 사용자 정보를 저장하기 때문에 이를 확인해보는 게 가장 확실한 방법이다. UserService가 UserDao를 제대로 사용하는지도 함께 검증할 수 있고, 디폴트 레벨 설정 후에 UserDao를 호출하는지도 검증되기 때문이다.
+
+```java
+// 5-21. add() 메서드의 테스트
+@Test
+public void add() {
+  userDao.deleteAll();
+
+  User userWithLevel = users.get(4); // GOLD 레벨
+  User useWithoutLevel = users.get(0);
+  userWithoutLevel.setLevel(null);
+
+  userService.add(userWithLevel);
+  userService.add(useWithoutLevel);
+
+  User userWithLevelRead = userDao.get(userWithLevel.getId());
+  User userWithoutLevelRead = userDao.get(userWithoutLevel.getId());
+
+  assertThat(userWithLevelRead.getLevel(), is(userWithLevel.getLevel()));
+  assertThat(userWithoutLevelRead.getLevel(), is(Level.BASIC));
+```
+
+```java
+// 5-22. 사용자 신규 등록 로직을 담은 add() 메서드
+public void add(User user) {
+  if(user.getLevel() == null) user.setLevel(Level.BASIC);
+  userDao.add(user);
+}
+```
+
+### 5.1.5 코드 개선
+어느정도 요구사항은 맞춰놨지만, 아직 코드가 깔끔하지 않게 느껴진다. 다음 사항들을 체크해보자.
+
+- 코드에 중복된 부분은 없는가?
+- 코드가 무엇을 하는 것인지 이해하기 불편하진 않은가?
+- 코드가 자신이 있어야 할 자리에 있는가
+- 앞으로 변경이 일어날 수 있는 건 어떤 것이며, 그 변화에 쉽게 대응할 수 있게 작성 되었는가?
+
+#### upgradeLevels() 메서드 코드의 문제점
+- for 루프 속에 들어있는 if/else 블록이 겹쳐 읽기 불편하다.
+- 레벨의 변화 단계와 업그레이드 조건, 조건이 충족됐을 때 해야 할 작업이 섞여서 로직을 이해하기 어렵다.
+- 플래그를 두고 이를 변경하고 마지막에 이를 확인해서 업데이트를 진행하는 방법도 그리 깔끔해보이지 않는다.
+- 코드가 깔끔해보이지 않는 이유는 이렇게 성격이 다른 여러가지 로직이 섞여있기 때문이다.
+
+- `user.getLevel() == Level.BASIC`은 레벨이 무엇인지 파악하는 로직이다.
+- `user.getLoginCount() >= 50`은 업그레이드 조건을 담은 로직이다.
+- `user.setLevel(Level.SILVER);`는 다음 단계의 레벨이 무엇인지와 레벨 업그레이드를 위한 작업은 어떤 것인지가 함께 담겨있다.
+- `changed = true;`는 이 자체로는 의미가 없고, 단지 멀리 떨어져 있는` userDao.update(user);`의 작업이 필요함을 알려주는 역할이다.
+- 잘 살펴보면 관련이 있지만, 사실 성격이 조금 다른 것들이 섞여있거나 분리돼서 나타나는 구조다.
+
+- 변경될만한 것 추측하기 -> 사용자 레벨, 업그레이드 조건, 업그레이드 작업
+  - 사용자 레벨이 변경되면?
+    - 현재 if 조건 블록이 레벨 개수만큼 반복되고 있다. 새로운 레벨이 추가되면, Level ENUM도 수정해야 하고, upgradeLevels()의 레벨 업그레이드 로직을 담은 코드에 if 조건식과 블록을 추가해줘야 한다.
+  - 업그레이드 작업이 변경되면?
+    - 추후에 레벨을 업그레이드 작업에서 이를테면 레벨 업그레이드 축하 알람 등 새로운 작업이 추가되면, user.setLevel(다음레벨); 뒤에 추가적인 코드를 작성해주어야 할 것이다. 그러면 점점 메소드의 if문 블록은 커진다.
+  - 업그레이드 조건이 변경되면?
+    - 업그레이드 조건도 문제다. 새로운 레벨이 추가되면 기존 if조건과 맞지 않으니 else로 이동하는데, 성격이 다른 두 가지 경우가 모두 한 곳에서 처리되는 것은 뭔가 이상하다.
+    - 업그레이드 조건이 계속 까다로워지면 마지막엔 if() 내부에 들어갈 내용이 방대하게 커질 수 있다.
+   
+
+- 아마 upgradeLevels() 코드 자체가 너무 많은 책임을 떠안고 있어서인지 전반적으로 변화가 일어날수록 코드가 지저분해진다는 것을 추측할 수 있다. 지저분할수록 찾기 힘든 버그가 숨어들어갈 확률이 높아질 것이다.
+
+
+#### upgradeLevels() 리팩토링
+
+```java
+// 5-23. 기존 작업 흐름만 남겨둔 upgradeLevels()
+ public void upgradeLevels() {
+  List<User> users = userDao.getAll();
+
+  for (User user : users) {
+      if(canUpgradeLevel(user)) {
+          upgradeLevel(user);
+      }
+  }
+}
+```
+- 위는 upgradeLevels()에서 기본 작업 흐름만 남겨둔 코드이다. 이 코드는 한 눈에 읽기에도 사용자 정보를 받아서 레벨 업그레이드를 할 수 있으면 레벨 업그레이드를 한다. 명확하다.
+
+- 이는 구체적인 구현에서 외부에 노출할 인터페이스를 분리하는 것과 마찬가지 작업을 코드에 한 것이다.
+
+- 이제 인터페이스화된 메소드들을 하나씩 구현해보자.
+
+```java
+// 5-24. 업그레이드 가능 확인 메서드
+private boolean canUpgradeLevel(User user) {
+    Level currentLevel = user.getLevel();
+
+    return switch(currentLevel) {
+        case BASIC -> user.getLoginCount() >= 50;
+        case SILVER -> user.getRecommendCount() >= 30;
+        case GOLD -> false;
+        default -> throw new IllegalArgumentException("Unknown Level: " + currentLevel);
+    };
+}
+```
+> canUpgradeLevel()의 요구사항은 해당 사용자에 대한 레벨 업그레이드 가능 여부를 확인하고 그 결과를 반환하는 것이다.
+
+- switch문으로 레벨을 구분하고 각 레벨에 대한 업그레이드 조건을 체크하고 업그레이드가 가능한지에 따라 true/false를 반환해준다.
+
+- 또, 등록되지 않은 레벨에 대해 메소드를 수행할 시에는 IllegalArgumentException이 발생하기 때문에 해당 등급에 대한 로직 처리를 하지 않았음을 쉽게 알 수 있다.
+
+```java
+// 5-25. 레벨 업그레이드 작업 메서드
+private void upgradeLevel(User user) {
+    Level currentLevel = user.getLevel();
+
+    switch (currentLevel) {
+        case BASIC -> user.setLevel(Level.SILVER);
+        case SILVER -> user.setLevel(Level.GOLD);
+        default -> throw new IllegalArgumentException("Can not upgrade this level: " + currentLevel);
+    }
+
+    userDao.update(user);
+}
+```
+> upgradeLevel()의 요구사항은 해당 사용자에 대한 레벨 업그레이드를 진행하는 것이다.
+
+- 위와 같이 작성하여 보기엔 깔끔해 보이지만, 여기서도 무언가 맘에 안드는 점이 있다.
+
+- 업그레이드된 다음 레벨이 무엇인지 자체를 이 메소드가 독립적으로 정하고 있다.
+- 업그레이드 후의 작업이 늘어난다면? 지금은 level 필드만을 손보지만, 나중에 포인트 같은 개념이 생겨서 레벨 업그레이드 보너스 포인트 같은 것을 증정해야된다고 생각해보자. case 문 뒤의 블록 내용이 많이 늘어날 것이다.
+- 업그레이드 후의 레벨이 무엇인지 결정하는 책임은 Level ENUM이 갖는 것이 맞지 않을까? 레벨의 순서에 대한 책임을 UserService에게 위임하지 말자.
+
+```java
+// 업그레이드 순서를 담고 있도록 수정한 Level
+public enum Level {
+    // 초기화 순서를 3, 2, 1 순서로 하지 않으면 `SILVER`의 다음 레벨에 `GOLD`를 넣는데 에러가 발생한다.
+    GOLD(3, null), SILVER(2, GOLD), BASIC(1, SILVER);
+
+    private final int value;
+    private final Level next;
+
+    Level(int value, Level next) {
+        this.value = value;
+        this.next = next;
+    }
+
+    public Level nextLevel() {
+        return next;
+    }
+
+    public int intValue() {
+        return value;
+    }
+
+    public static Level valueOf(int value) {
+        return switch (value) {
+            case 1 -> BASIC;
+            case 2 -> SILVER;
+            case 3 -> GOLD;
+            default -> throw new AssertionError("Unknown value: " + value);
+        };
+    }
+}
+```
+- 위와 같이 업그레이드 순서에 대한 책임을 Level enum에 맡겼다. 이제 다음 레벨이 무엇인지 알고 싶다면, .nextLevel() 메소드를 출력해보면 된다. 이제 다음 단계의 레벨이 무엇인지 일일이 if문에 담아둘 필요가 없다.
+
+- 이제 사용자 정보가 바뀌는 부분을 UserService 메소드에서 User로 옮겨보자. User는 사용자 정보를 담고 있는 단순한 자바빈이긴 하지만 User도 엄연히 자바 오브젝트이고 내부 정보를 다루는 기능이 있을 수 있다. UserService가 일일이 레벨 업그레이드 시에 User의 어떤 필드를 수정해야 하는지에 대한 로직을 갖고 있기 보다는 User에게 레벨 업그레이드를 해야 하니 정보를 변경하라고 요청하는 편이 낫다.
+
+```java
+// 5-27. User의 레벨 업그레이드 작업용 메서드
+public void upgradeLevel() {
+    Level nextLevel = this.level.nextLevel();
+
+    if (nextLevel == null) {
+       throw new IllegalStateException(this.level + "은 업그레이드가 불가능합니다.");
+    } else {
+        this.level = nextLevel;
+    }
+}
+```
+- UserService의 canUpgradeLevel() 메소드에서 업그레이드 가능 여부를 미리 판단해주긴 하지만, User 오브젝트를 UserService만 사용한다는 보장은 없으므로, 스스로 예외상황에 대한 검증 기능을 갖고 있는 편이 안전하다.
+
+- Level enum은 다음 레벨이 없는 경우에는 nextLevel()에서 null을 반환한다. 따라서 이 경우에는 User의 레벨 업그레이드 작업이 진행돼서는 안되므로, 예외를 던져야 한다.
+
+- 애플리케이션의 로직을 바르게 작성하면 이런 경우는 아예 일어나지 않겠지만, User 오브젝트를 잘못 사용하는 코드가 있다면 확인해줄 수 있으니 유용하다.
+
+- User에 업그레이드 작업을 담당하는 독립적인 메소드를 두고 사용할 경우, 업그레이드 시 기타 정보도 변경이 필요해졌을 때, 그 장점이 무엇인지 알 수 있을 것이다. 이를테면 마지막으로 업그레이드 된 시점을 기록하고 싶다면, lastUpgraded 필드를 추가하고 this.lastUpgraded = new Date();와 같은 코드를 추가함으로써, 쉽게 동작을 더할 수 있다.
+
+```java
+// 5-28. 간결해진 upgradeLevel()
+private void upgradeLevel(User user) {
+    user.upgradeLevel();
+    userDao.update(user);
+}
+```
+#### User 테스트
+```java
+ @Test
+public void upgradeLevel() {
+    Level[] levels = Level.values();
+
+    for (Level level : levels) {
+        if(level.nextLevel() == null) continue;
+
+        user.setLevel(level);
+        user.upgradeLevel();
+        Assertions.assertEquals(user.getLevel(), level.nextLevel());
+    }
+}
+
+@Test
+@DisplayName("예외 테스트 - 다음 레벨이 없는 레벨을 업그레이드 하는 경우")
+public void cannotUpgradeLevel() {
+    Level[] levels = Level.values();
+
+    Assertions.assertThrows(IllegalStateException.class, () -> {
+        for (Level level : levels) {
+            if(level.nextLevel() != null) continue;
+
+            user.setLevel(level);
+            user.upgradeLevel();
+        }
+    });
+}
+```
+#### UserServiceTest 개선
+```java
+@Test
+public void upgradeLevels() {
+    for (User user : users) {
+        userDao.add(user);
+    }
+
+    userService.upgradeLevels();
+
+    checkLevelUpgraded(users.get(0), false);
+    checkLevelUpgraded(users.get(1), true);
+    checkLevelUpgraded(users.get(2), false);
+    checkLevelUpgraded(users.get(3), true);
+    checkLevelUpgraded(users.get(4), false);
+}
+
+private void checkLevelUpgraded(User userOrigin, boolean upgraded) {
+    User userUpdate = userDao.get(userOrigin.getId());
+    Assertions.assertEquals(
+            userOrigin.getLevel().nextLevel() == userUpdate.getLevel()
+            , upgraded);
+}
+```
+
+- 의미 없는 상수 중복 제거 및 상수의 도입
+  ```java
+  public class UserService {
+      UserDao userDao;
+  
+      public static final int MIN_LOGIN_COUNT_FOR_SILVER = 50;
+      public static final int MIN_RECOMMEND_COUNT_FOR_GOLD = 30;
+  
+      ...
+  
+      private boolean canUpgradeLevel(User user) {
+          Level currentLevel = user.getLevel();
+  
+          return switch(currentLevel) {
+              case BASIC -> user.getLoginCount() >= MIN_LOGIN_COUNT_FOR_SILVER;
+              case SILVER -> user.getRecommendCount() >= MIN_RECOMMEND_COUNT_FOR_GOLD;
+              case GOLD -> false;
+              default -> throw new IllegalArgumentException("Unknown Level: " + currentLevel);
+          };
+      }
+  }
+  ```
+- 상수를 사용하도록 만든 테스트
+  ```java
+   @Before
+  public void setUp() {
+      this.userDao = this.userService.userDao;
+      userDao.deleteAll();
+  
+      users = Arrays.asList(
+              new User("bumjin", "박범진", "p1", Level.BASIC, MIN_LOGIN_COUNT_FOR_SILVER - 1, 0)
+              , new User("joytouch", "강명성", "p2", Level.BASIC, MIN_LOGIN_COUNT_FOR_SILVER, 0)
+              , new User("erwins", "신승한", "p3", Level.SILVER, MIN_LOGIN_COUNT_FOR_SILVER, MIN_RECOMMEND_COUNT_FOR_GOLD - 1)
+              , new User("madnite1", "이상호", "p4", Level.SILVER, MIN_LOGIN_COUNT_FOR_SILVER, MIN_RECOMMEND_COUNT_FOR_GOLD)
+              , new User("green", "오민규", "p5", Level.GOLD, 100, 100)
+      );
+  }
+  ```
+- 업그레이드 정책 인터페이스
+  ```java
+  public interface UserLevelUpgradePolicy {
+    boolean canUpgradeLevel(User user);
+    void upgradeLevel(User user);
+  }
+  ```
+- 
