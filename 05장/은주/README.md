@@ -99,5 +99,46 @@ private void upgradeLevel(User user) {
 
 #### 테스트 실패의 원인
 - 모든 사용자의 레벨을 업그레이드 하는 upgradeLevels() 메소드가 **하나의 트랜잭션 안에서 동작하지 않았기 때문** 이다
+  ```java
+  public void upgradeLevels() {
+    List<User> users : users) {
+      if (canUpgradeLevel(user)) {
+        upgradeLevel(user);
+      }
+    }
+  }
+  ```
 
 ### 5.2.2. 트랜잭션 경계설정
+- DB 는 하나의 SQL 명령을 처리하는 경우 그 자체로 완벽한 트랜잭션을 지원한다
+- `트랜잭션 롤백` : DB에서 2번째 SQL이 성공적으로 수행되기 전에 문제 발생 시 앞에서 처리한 SQL 작업을 취소시켜야 한다
+- `트랜잭션 커밋` : 여러 개의 SQL을 하나의 트랜잭션으로 처리하는 경우 **모든 SQL 수행 작업이 성공적으로 마무리 되었다고 DB 에 알려줘서 작업을 확정** 시킨다
+
+#### JDBC 트랜잭션의 트랜잭션 경계설정
+- 트랜잭션을 끝내는 방법은 롤백, 커밋 2가지가 있다
+```java
+Connection c = dataSource.getConnection();
+
+c.setAutoCommit(false); // 트랜잭션 경계 시작
+try {
+  PreparedStatement st1 = c.prepareStatement("update users ...");
+  st1.executeUpdate();
+  
+  PreparedStatement st2 = c.prepareStatement("delete users ...");
+  st2.executeUpdate();
+  
+  c.commit(); // 트랜잭션 경계 끝지점 (커밋)
+} catch(Exception e) {
+  c.rollback(); // 트랜잭션 경계 끝지점 (롤백)
+}
+c.close();
+```
+- 트랜잭션의 시작과 종료는 Connection 오브젝트를 통해 이뤄지기 때문에, JDBC 의 트랜잭션은 **하나의 Connection 을 가져와 사용하다가 닫는 사이에 일어난다.**
+- JDBC의 기본 설정은 DB 작업을 수행한 직후 자동 커밋되게 되어있다
+  - 따라서 **작업마다 커밋해서 트랜잭션을 끝내버리므로 여러 개의 DB 작업을 모아서 트랜잭션을 만드는 기능이 꺼져있다**
+- JDBC에서는 auto commit 을 끄면 새로운 트랜잭션이 시작되게 만들 수 있고, **트랜잭션이 한번 시작되면 commit() 또는 rollback() 메소드가 호출될 때까지의 작업이 하나의 트랜잭션으로 묶인다**
+- `트랜잭션의 경계설정` : setAutoCommit(false) 로 트랜잭션 시작 선언하고 commit(), rollback() 으로 트랜잭션을 종료하는 작업
+  - 트랜잭션 경계는 하나의 Connection 이 만들어지고 닫히는 범위 내에 존재한다
+  - `로컬 트랜잭션` : 하나의 DB 커넥션 안에서 만들어지는 트랜잭션
+
+#### UserService와 UserDao의 트랜잭션 문제
