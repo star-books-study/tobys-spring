@@ -142,3 +142,29 @@ c.close();
   - `로컬 트랜잭션` : 하나의 DB 커넥션 안에서 만들어지는 트랜잭션
 
 #### UserService와 UserDao의 트랜잭션 문제
+- JdbcTemplate 메소드 안에서 DataSource 의 getConnection() 메소드를 호출해서 Connection 오브젝트를 가져옴
+- 작업을 마치면 Connection 을 닫고 빠져나오므로 **템플릿 메소드 호출 1번에 1개의 DB 커넥션이 만들어지고 닫히는 것** 이다
+- 일련의 작업이 `하나의 트랜잭션` 으로 묶이려면 작업이 진행되는 동안 **DB 커넥션도 하나만 사용되어야 한다**
+
+#### 비즈니스 로직 내의 트랜잭션 경계설정
+```java
+public void upgradeLevels() throws Exception {
+  (1) DB Connection 생성
+  (2) 트랜잭션 시작
+  try {
+    (3) DAO 메소드 호출
+    (4) 트랜잭션 커밋
+  catch(Exception e) {
+    (5) 트랜잭션 롤백
+    throw e;
+  }
+  finally {
+    (6) DB Connection 종료
+  }
+```
+- 이렇게 코드를 작성하면 upgradeLevels() 가 한 트랜잭션 안에서 실행될 수 있다
+
+#### UserService 트랜잭션 경계설정의 문제점
+- DB 커넥션을 비롯한 리소스의 깔끔한 처리를 가능하게 했던 JdbcTemplate 을 더이상 활용할 수 없다
+- DAO 메소드와 비즈니스 로직인 UserService 메소드에 Connection 파라미터가 추가되어야 한다
+- Connection 파라미터가 UserDao 인터페이스 메소드에 추가되면 UserDao 는 더이상 데이터 액세스 기술에 독립적일 수 없다
