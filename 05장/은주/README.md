@@ -168,3 +168,22 @@ public void upgradeLevels() throws Exception {
 - DB 커넥션을 비롯한 리소스의 깔끔한 처리를 가능하게 했던 JdbcTemplate 을 더이상 활용할 수 없다
 - DAO 메소드와 비즈니스 로직인 UserService 메소드에 Connection 파라미터가 추가되어야 한다
 - Connection 파라미터가 UserDao 인터페이스 메소드에 추가되면 UserDao 는 더이상 데이터 액세스 기술에 독립적일 수 없다
+
+### 5.2.3. 트랜잭션 동기화
+- upgradeLevels() 내에서 Connection 을 생성하는데 이 오브젝트를 계속 파라미터로 전달하다가 DAO 를 호출할 때 사용하게 하는 건 피하고 싶다
+  - 이를 위한 방법이 독립적인 `트랜잭션 동기화` 방식이다
+- 트랜잭션 동기화 : UserService 에서 트랜잭션 시작하기 위해 만든 Connection 을 특별한 저장소에 보관해두고, 이후에 호출되는 DAO 메소드에서는 저장된 Connection 을 가져다 사용하게 하는 것
+
+![alt text](image.png)
+
+1. UserService에서 Connection 생성
+2. Connection을 트랜잭션 동기화 저장소에 저장 및 setAutoCommit(false)를 호출해 트랜잭션 시작
+3. 첫 번째 dao.update() 호출
+4. JdbcTemplate 메소드는 트랜잭션 동기화 저장소에 Connection이 존재하는지 확인 및 가져옴
+5. 가져온 Connection을 이용해 PrepareStatement를 만들어 수정 SQL 실행
+6. Connection을 닫지않고 3번 부터 반복
+7. ...
+8. Connection의 commit()을 호출해서 트랜잭션 완료시킴
+9. 트랜잭션 동기화 저장소에서 Connection 제거
+- 트랜잭션 동기화 저장소은 **작업 스레드마다 독립적**으로 Connection 오브젝트를 저장하고 관리하기 때문에 **멀티스레드 환경에서 충돌이 발생하지 않음**
+- 트랜잭션 동기화 기법을 사용하면, 파라미터를 통해 일일이 Connection 오브젝트를 전달할 필요가 없어진다
