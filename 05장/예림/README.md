@@ -660,3 +660,24 @@ private void checkLevelUpgraded(User userOrigin, boolean upgraded) {
 #### 테스트용 UserService 대역
 - 테스트를 위해 코드를 함부로 건드리는 건 좋은 생각이 아니다.
 - 이런 경우엔 테스트용으로 특별히 만든 UserService 대역을 사용하는 방법이 좋다.
+  => UserService를 상속해서 테스트에 필요한 기능을 추가하도록 일부 메서드를 오버라이딩 하자
+- 현재 UserService 메서드의 대부분은 private -> 이번만 예외로 애플리케이션 코드를 수정하자
+- upgradeLevel() 메서드를 오버라이딩하자
+```java
+protected void upgradeLevel(User user) { ... }
+```
+```
+// 5-34. UserService의 테스트용 대역 클래스
+static class TestUserService extends UserService {
+  private String id;
+
+  private TestUserService(String id) { // 예외를 발생시킬 User 오브젝트의 id를 지정할 수 있게 만든다.
+    this.id = id;
+  }
+
+  protected void upgradeLevel(User user) {
+    if(user.getId().equals(this.id)) throw new TestUserServiceException();
+    super.upgradeLevels(user); // 지정된 id의 User 오브젝트가 발견되면 예외를 던져서 작업을 강제로 중단시킨다.
+  }
+}
+```
