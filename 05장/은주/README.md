@@ -187,3 +187,40 @@ public void upgradeLevels() throws Exception {
 9. 트랜잭션 동기화 저장소에서 Connection 제거
 - 트랜잭션 동기화 저장소은 **작업 스레드마다 독립적**으로 Connection 오브젝트를 저장하고 관리하기 때문에 **멀티스레드 환경에서 충돌이 발생하지 않음**
 - 트랜잭션 동기화 기법을 사용하면, 파라미터를 통해 일일이 Connection 오브젝트를 전달할 필요가 없어진다
+
+#### 트랜잭션 동기화 적용
+
+```java
+public class UserService {
+    protected DataSource dataSource;
+    
+    public void setDataSource(DataSource dataSource){
+        this.dataSource = dataSource;
+        }
+        
+    public void upgradeLevels() throws SQLException {
+        TransactionSynchronizationManager.initSynchronization(); // (1) 트랜잭션 동기화 작업을 초기화
+        Connection c = DataSourceUtils.getConnection(dataSource); // (2) DB 커넥션 생성
+        c.setAutoCommit(false);
+        try{
+            List<User> users = userDao.getAll();
+            for (User user : users) {
+                if (canUpgradeLevel(user)) {
+                    upgradeLevel(user);
+                }
+            }
+            c.commit(); // 정상 작업 마치면 트랜잭션 커밋
+        }catch (Exception e){
+            c.rollback(); // 예외 발생 시 롤백
+            throw e;
+        } finally {
+            DataSourceUtils.releaseConnection(c, dataSource); //스프링 유틸리티 메소드를 이용해 DB 커넥션을 안전하게 닫음
+            // 동기화 작업 종료 및 정리
+            TransactionSynchronizationManager.unbindResource(this.dataSource);
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+		...
+}
+```
+- (2) : DataSource 에서 Connection 을 직접 가져오지 않고, 스프링이 제공하는 유틸리티 메소드를 사용하는 이유는 DataSourceUtils 의 getConnection() 메소드는 **Connection 오브젝트를 생성할 뿐만 아니라 트랜잭션 동기화에 사용하도록 저장소에 바인딩** 해주기 때문이다
