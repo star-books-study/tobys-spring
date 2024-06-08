@@ -224,3 +224,78 @@ public class UserService {
 }
 ```
 - (2) : DataSource 에서 Connection 을 직접 가져오지 않고, 스프링이 제공하는 유틸리티 메소드를 사용하는 이유는 DataSourceUtils 의 getConnection() 메소드는 **Connection 오브젝트를 생성할 뿐만 아니라 트랜잭션 동기화에 사용하도록 저장소에 바인딩** 해주기 때문이다
+
+#### JdbcTemplate 과 트랜잭션 동기화
+- JdbcTemplate 은 JDBC 작업의 템플릿 메소드를 호출하면 직접 Connection 을 생성하고 종료하는 일을 담당한다
+- 미리 생성되어 트랜잭션 동기화 저장소에 등록된 DB 커넥션이나 트랜잭션이 없는 경우, **JdbcTemplate 이 직접 DB 커넥션을 만들고 트랜잭션을 시작하여 JDBC 작업을 진행한다**
+- 반면 트랜잭션 동기화를 시작해 두었다면 그때부터 실행되는 JdbcTemplate 의 메소드에서는 **직접 DB 커넥션을 만드는 대신 트랜잭션 동기화 저장소에 있는 DB 커넥션을 가져와 사용한다**
+
+### 5.2.4. 트랜잭션 서비스 추상화
+#### 기술과 환경에 종속되는 트랜잭션 경계설정 코드
+- 1개 이상의 DB 로의 작업을 하나의 트랜잭션으로 만드는 것은 JDBC 의 Connection 을 이용한 트랜잭션 방식인 로컬 트랜잭션으로는 불가능하다
+  - 로컬 트랜잭션은 **하나의 DB Connection 에 종속** 되기 때문
+- 각 DB 와 독립적으로 만들어지는 Connection 이 아닌 **별도 트랜잭션 관리자를 통해 트랜잭션을 관리하는 글로벌 트랜잭션 방식을 사용** 해야 여러 개의 DB 가 참여하는 작업을 하나의 트랜잭션으로 만들 수 있다
+- 자바는 글로벌 트랜잭션을 지원하는 트랜잭션 매니저를 위한 API 인 JTA 를 제공한다
+  - 애플리케이션에서는 기존대로 DB 는 JDBC, 메시징 서버는 JMS 를 사용하여 필요 작업을 수행한다
+  - 단, 트랜잭션은 JDBC 나 JMS API 를 사용하여 직접 제어하지 않고 JTA 를 통해 트랜잭션 매니저가 관리하도록 위임한다
+  - 트랜잭션 매니저는 DB 와 메시징 서버를 제어, 관리하는 각각의 리소스 매니저와 XA 프로토콜로 연결된다
+  - 이를 통해 트랜잭션 매니저가 실제 DB 와 메징 서버의 트랜잭션을 종합 제어할 수 있게 되는 것이다
+![alt text](image-1.png)
+
+#### 트랜잭션 API 의 의존관계 문제와 해결책
+- UserDAO 가 DAO 패턴을 사용해서 구현 데이터 액세스 기술을 유연하게 바꿔 사용하게 했지만, UserService 에서 **트랜잭션 경계 설정을 해야하면서 다시 특정 데이터 액세스 기술에 종속되는** 구조가 되었다
+- 애플리케이션 코드에서 트랜잭션 추상 계층이 제공하는 API 를 이용해 트랜잭션을 이용하게 만들어주면, 특정 기술에 종속되지 않는 트랜잭션 경계설정 코드를 만들 수 있을 것이다
+
+#### 스프링의 트랜잭션 서비스 추상화
+![alt text](image-2.png)
+```java
+public class UserService {
+    public void upgradeLevels() {
+        PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource); // JDBC 트랜잭션 추상 오브젝트 생성
+        TransactionStatus status = transactionManager.getTransaction(new DefaultTransactionDefinition());
+        try{
+            List<User> users = userDao.getAll();
+            for (User user : users) {
+                if (canUpgradeLevel(user)) {
+                    upgradeLevel(user);
+                }
+            }
+            transactionManager.commit(status); // 커밋
+        }catch (Exception e){
+            transactionManager.rollback(status); // 롤백
+            throw e;
+        }
+    }
+}
+```
+- 스프링이 제공하는 트랜잭션 경계설정을 위한 추상 인터페이스는 `PlatformTransactionManager` 이다
+- 스프링의 트랜잭션 추상화 기술은 **트랜잭션 동기화를 사용** 한다
+
+#### 트랜잭션 기술 설정의 분리
+- 트랜잭션 추상화 API 를 적용한 코드를 JTA 를 이용하는 글로벌 트랜잭션으로 변경하려면?
+```java
+// AS-IS
+PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource); // JDBC 트랜잭션 추상 오브젝트 생성
+
+// TO-BE
+PlatformTransactionManager transactionManager = new JTATransactionManager();
+```
+- 하지만 어떤 트랜잭션 매니저 구현 클래스를 사용할지 UserService 코드가 알고 있는 것은 DI 원칙에 위배된다
+  - **자신이 사용할 구체클래스를 직접 결정하고 생성하지 말고, 컨테이너를 통해 외부에서 제공받게 하는 스프링 DI 방식으로 바꾸자**
+- `DataSourceTransactionManager` 는 스프링 빈으로 등록하고 UserService 가 DI 방식으로 사용하게 해야 한다.
+  - 어떤 클래스든 스프링 빈으로 등록할 때 검토해야 할 것은 **싱글톤으로 만들어져 여러 스레드에서 동시 사용해도 괜찮은지** 이다
+  - 스프링이 제공하는 모든 `PlatformTransactionManager` 구현 클래스는 **싱글톤 사용 가능** 하다
+```java
+public class UserService {
+    private PlatformTransactionManager transactionManager;
+
+    public void setTransactionManager(PlatformTransactionManager transactionManager){
+        this.transactionManager = transactionManager;
+    }
+    
+    public void upgradeLevels() {
+        TransactionStatus status = this.transactionManager.getTransaction(
+            new DefaultTransactionDefinition());
+    }
+}
+```
