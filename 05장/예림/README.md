@@ -681,3 +681,23 @@ static class TestUserService extends UserService {
   }
 }
 ```
+- 다른 예외가 발생했을 경우 구분하기 위해 테스트 목적을 띤 예외를 다음과 같이 정의해둔다.
+```java
+static class TestUserServiceException extends RuntimeException {
+}
+```
+
+#### 강제 예외 발생을 통한 테스트
+- 레벨 업그레이드를 시도하다가 중간에 예외가 발생했을 경우 그 업그레이드 했던 사용자도 다시 원래 상태로 돌아갔는지 확인하는 테스트를 만들어보자.
+
+```java
+@Test
+public void upgradeAllOrNothing() {
+  UserService testUserService = new TestUserService(users.get(3).getId());
+  TestUserService setUserDao(this.userDao);
+  userDao.deleteAll();
+  for(User user : users) userDao.add(user);
+
+  try {
+    testUserService.upgradeLevels();
+
