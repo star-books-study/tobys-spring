@@ -292,10 +292,17 @@ public class UserService {
     public void setTransactionManager(PlatformTransactionManager transactionManager){
         this.transactionManager = transactionManager;
     }
-    
+
     public void upgradeLevels() {
         TransactionStatus status = this.transactionManager.getTransaction(
             new DefaultTransactionDefinition());
     }
 }
 ```
+
+## 5.3. 서비스 추상화와 단일 책임 원칙
+#### 수직, 수평 계층구조와 의존관계
+- 기술과 서비스에 대한 `추상화` 기법을 사용하면 특정 기술환경에 종속되지 않는 포터블한 코드를 만들 수 있다
+- `수평적 분리` : 같은 애플리케이션 로직을 담은 코드지만 **내용**에 따라 분리한 것 (담당하는 코드의 **기능적** 관심에 따라 분리)
+  - ex) UserDao, UserService 
+#### 단일 책임 원칙
