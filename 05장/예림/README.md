@@ -700,4 +700,13 @@ public void upgradeAllOrNothing() {
 
   try {
     testUserService.upgradeLevels();
+    fail("TestUserServiceException expected");
+  }
+  catch(TestUserServiceException e) {
+  }
 
+  checkLevelUpgraded(users.get(1), false);
+
+  }
+}
+```
