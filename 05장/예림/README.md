@@ -691,8 +691,10 @@ static class TestUserServiceException extends RuntimeException {
 - 레벨 업그레이드를 시도하다가 중간에 예외가 발생했을 경우 그 업그레이드 했던 사용자도 다시 원래 상태로 돌아갔는지 확인하는 테스트를 만들어보자.
 
 ```java
+// 5-36. 예외 발생 시 작업 취소 여부 테스트
 @Test
 public void upgradeAllOrNothing() {
+  // 예외를 발생시킬 네 번째 사용자의 id를 넣어서 테스트용 UserService 대역 오브젝트를 생성한다.
   UserService testUserService = new TestUserService(users.get(3).getId());
   TestUserService setUserDao(this.userDao);
   userDao.deleteAll();
@@ -702,11 +704,21 @@ public void upgradeAllOrNothing() {
     testUserService.upgradeLevels();
     fail("TestUserServiceException expected");
   }
-  catch(TestUserServiceException e) {
+  catch(TestUserServiceException e) { // TestUserService가 던져주는 예외를 잡아서 계속 진행되도록 한다. 그 외의 예외라면 테스트 실패
   }
 
+  // 예외가 발생하기 전에 레벨 변경이 있었던 사용자의 레벨이 처음 상태로 바뀌었나 확인
   checkLevelUpgraded(users.get(1), false);
 
   }
 }
 ```
+
+#### 테스트 실패의 원인
+- 테스트 실패 원인 : 트랜잭션 문제
+- 사용자가 레벨을 업그레이드하는 upgradeLevels() 메서드가 하나의 트랜잭션 안에서 동작하지 않았기 때문
+> 트랜잭션 : 더 이상 나눌 수 없는 단위 작업
+- 예외가 발생해서 작업을 완료할 수 없다면 아예 작업이 시작되지 않은 것처럼 초기 상태로 돌려놔야 한다.
+
+### 5.2.2 트랜잭션 경계 설정
+
