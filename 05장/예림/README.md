@@ -782,7 +782,7 @@ c.close();
 - 현재까지 문제의 핵심은 UserService에서 Connection 객체를 만들어서 해당 객체를 2번이나 전달하느라 코드가 어지럽혀졌고 그 영향이 심지어 테스트코드까지 미쳤다는 것이다.
 
 - 이런 문제를 해결하기 위해 스프링이 제안하는 방법은 독립적인 트랜잭션 동기화(transaction synchronization) 방식이다.
-- **트랜잭션 동기화**란 UserService에서 트랜잭션을 시작하기 위해 만든 Connection 오브젝트를 특별한 장소에 보관해두고, 이후에 호출되는 DAO의 메소드에서는 저장된 Connection을 가져다가 사용하게 하는 것이다.
+- **트랜잭션 동기화**란 UserService에서 트랜잭션을 시작하기 위해 만든 `Connection` 오브젝트를 특별한 장소에 보관해두고, 이후에 호출되는 DAO의 메소드에서는 저장된 Connection을 가져다가 사용하게 하는 것이다.
 - 정확히는 DAO가 사용하는 JdbcTemplate이 트랜잭션 동기화 방식을 이용하도록 하는 것이다. 그리고 트랜잭션이 모두 종료되면 그 때는 동기화를 마치면 된다.
 
 - 다음은 트랜잭션 동기화 방식을 사용한 경우의 작업 흐름을 보여준다.
@@ -863,11 +863,11 @@ public void upgradeLevels() throws SQLException{
     }
 }
 ```
-upgradeLevels에 위와 같은 트랜잭션 처리를 해주었다. 스프링을 사용하지 않고 JDBC를 이용해 Connection 객체를 직접 쓸 때와 다른 점은
+- upgradeLevels에 위와 같은 트랜잭션 처리를 해주었다. 스프링을 사용하지 않고 JDBC를 이용해 Connection 객체를 직접 쓸 때와 다른 점은
 
-- 첫째로 트랜잭션 동기화 관리(TransactionSynchronizationManager)를 이용한다는 점
-- 둘째로는 커넥션을 가져올 때나 반납할 때 DataSourceUtils라는 스프링 제공 유틸리티를 사용한다는 점
-두가지가 있다.
+  - 첫째로 트랜잭션 동기화 관리(TransactionSynchronizationManager)를 이용한다는 점
+  - 둘째로는 커넥션을 가져올 때나 반납할 때 DataSourceUtils라는 스프링 제공 유틸리티를 사용한다는 점
+  두가지가 있다.
 
 - 더이상 DataSource.getConnection()을 이용해 Connection을 그냥 가져오지 않는 이유는 DataSourceUtils를 이용해 커넥션을 가져오고 setAutoCommit(false) 메소드를 수행하면, DB 커넥션 생성과 트랜잭션 동기화에 사용하도록 저장소에 바인딩해주기 때문이다.
 
@@ -883,4 +883,12 @@ upgradeLevels에 위와 같은 트랜잭션 처리를 해주었다. 스프링을
 
 ### 5.2.4 트랜잭션 서비스 추상화
 
+#### 기술과 환경에 종속되는 트랜잭션 경계 설정 코드
+- 새로운 문제 상황 : 이 사용자 관리 모듈을 구매해서 사용하기로 한 G 사에서 새로운 요구가 들어옴
+  - G 사는 여러 개의 DB를 사용하고 있음. 그래서 하나의 트랜잭션 안에서 여러 개의 DB에 데이터를 넣는 작업 필요
+  - 한 개 이상의 DB로의 작업을 하나의 트랜잭션으로 만드는 것은 JDBC의 Connection을 사용한 방식(로컬 트랜잭션)으로는 불가능
+  - 로컬 트랜잭션은 하나의 DB Connection에 종속되기 때문
+  => 별도의 트랜잭션 관리자를 통해 트랜잭션을 관리하는 **글로벌 트랜잭션 방식** 사용
 
+- 자바는 글로벌 트랜잭션을 지원하는 트랜잭션 매니저를 지원하기 위한 API인 JTA(Java Transaction API)를 제공하고 있음
+- 
