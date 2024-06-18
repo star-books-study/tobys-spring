@@ -891,4 +891,147 @@ public void upgradeLevels() throws SQLException{
   => 별도의 트랜잭션 관리자를 통해 트랜잭션을 관리하는 **글로벌 트랜잭션 방식** 사용
 
 - 자바는 글로벌 트랜잭션을 지원하는 트랜잭션 매니저를 지원하기 위한 API인 JTA(Java Transaction API)를 제공하고 있음
-- 
+
+<img width="581" alt="스크린샷 2024-06-18 오후 1 56 16" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/139430c7-d184-4cb8-bd7d-cb238e4c9015">
+
+- 애플리케이션에서는 기존의 방법대로 DB는 JDBC, 메시징 서버라면 JMS 같은 API를 사용해서 필요한 작업 수행
+  - 단 트랜잭션은 JDBC나 JMS API를 사용해서 직접 제어하지 않고 JTA를 통해 트랜잭션 매니저가 관리하도록 위임
+- 트랜잭션 매니저는 DB와 메시징 서버를 제어하고 관리하는 각각의 리소스 매니저와 XA 프로토콜을 통해 연결
+
+- JTA를 사용한 트랜잭션의 처리코드의 전형적인 구조는 다음과 같다.
+  ```java
+  InitialContext ctx = new InitialContext();
+  UserTransaction tx = (UserTransation)ctx.lookup(USER_TX_JNDI_NAME);
+
+  tx.begin();
+  Connection c = dataSource.getConnection(); // JNDI로 가져온 dataSource를 사용해야 한다.
+  try {
+    // 데이터 액세스 코드
+    tx.commit();
+  } catch (Exception e) {
+    tx.rollback();
+    throw e;
+  } finally {
+    c.close();
+  }
+  ```
+  - 트랜잭션 경계 설정을 위한 구조는 JDBC를 사용했을 때와 비슷
+    - `Connection` 메서드 대신에 `UserTransaction`의 메서드를 사용한다는 점을 제외하면 트랜잭션 처리 방법은 별로 달라진 게 없음
+  - 문제는 JDBC 로컬 트랜잭션을 JTA를 이용하는 글로벌 트랜잭션으로 바꾸려면 UserService의 코드를 수정해야 함
+  - 그런데 로컬 트랜잭션을 사용하면 충분한 고객을 위해서는 JDBC를 이용한 트랜잭션 관리코드를, G 사처럼 다중 DB를 위한 글로벌 트랜잭션을 필요로 하는 곳을 위해서는 JTA를 이용한 코드를 적용해야 함 => UserService 로직이 기술 환경에 따라서 바뀐다
+- 그러던 와중... Y 사에서는 하이버네이트를 이용해 UserDato를 직접 구현했다고 알려줬다. UserService와 UserDao는 DI를 통해 연결되어 있기 때문에 UserService를 수정하지 않고도 UserDao의 데이터 액세스 기술은 얼마든지 변경이 가능하다는 점을 영리하게 활용한 것
+- 그런데 문제는 하이버네이트를 이용한 트랜잭션 관리코드는 JDBC와 JTA의 코드와는 또 다르다. (Connection 대신 Session 사용, 독자적인 트랜잭션 관리 API 사용) => UserService 로직을 변경해야 함
+
+#### 트랜잭션 API의 의존관계 문제와 해결책
+- UserService에 트랜잭션 경계설정 코드를 도임한 후의 클래스 의존관계
+  <img width="566" alt="스크린샷 2024-06-18 오후 2 13 19" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/ef23f830-890c-4d1a-af30-c860e1f032f2">
+- 원래 UserService는 UserDao 인터페이스에만 의존하는 구조였는데, 트랜잭션 코드가 UserService에 등장하면서부터 간접적으로 의존하는 코드가 되어버림
+- 어떻게 해야할까?
+  - 트랜잭션 경계 코드를 제거할 수는 없음
+  - 하지만 특정 기술에 의존적인 Connection, UserTransaction, Session/Transation API 등에 종속도ㅚ지 않게 하는 방법은 있음
+  - 트랜잭션의 경계 설정을 담당하는 코드는 일정한 패턴을 갖는 유사한 구조 -> 추상화 가능
+- 트랜잭션 처리 코드에서 추상화를 도입해보자
+
+#### 스프링과 트랜잭션 서비스 추상화
+- 스프링은 트랜잭션 기술의 공통점을 담은 트랜잭션 추상화 기술을 제공하고 있음
+- 스프링이 제공하는 트랜잭션 추상화 계층 구조
+  <img width="574" alt="스크린샷 2024-06-18 오후 2 20 44" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/ff4167ef-7b7d-4237-9cc6-9e0345a64ccb">
+
+- 트랜잭션 추상화 방법을 UserService에 적용한 코드
+  ```java
+  public void upgradeLevels() {
+    PlatformTransactionManager transactionManager = new DataSourceTransactionManager(dataSource); // JDBC 트랜잭션 추상 오브젝트 생성
+
+    // 트랜잭션 시작
+    TransactionStatus status = transactionManager.getTransaction(new DefaultTransactionDefinition());
+  try {
+    // 트랜잭션 안에서 진행되는 작업
+    // =================================
+    List<User> users = userDao.getAll();
+    for(User user : users) {
+      if(canUpgradeLevel(user)) {
+        upgradeLevel(user);
+      }
+    }
+    // =================================
+    transactionManager.commmit(status); // 트랜잭션 커밋
+  } catch (RuntimException e) {
+    transactionManager.rollback(status); // 트랜잭션 커밋
+    throw e;
+  }
+}
+```
+- PlatformTransactionManager에서는 트랜잭션을 가져오는 요청인 getTransaction() 메서드를 호출하여 트랜잭션을 시작할 수 있다.(일단은 트랜잭션을 가져온다는 것을 시작한다는 의미라고 생각하자.)
+- DefaultTransactionDefinition 오브젝트는 트랜잭션에 대한 속성을 담고 있다.
+- 이렇게 시작된 트랜잭션은 TransactionStatus 타입의 변수에 저장됨
+- 트랜잭션에 대한 조작이 필요할 때 PlatformTransactionManager 메서드의 파라미터로 전달해주면 된다.
+
+#### 트랜잭션 기술 설정의 분리
+- 트랜잭션 추상화 API를 적용한 UserService 코드를 글로벌 트랜잭션으로 변경해보자.
+- `PlatformTransactionManager` 구현 클래스를 `DataSourceTransactionManager`에서 `JTATransactionManager`로 바꿔주기만 하면 된다.
+ - `JTATransactionManager` : 주요 자바 서버에서 제공하는 JTA 정보를 JNDI를 통해 자동으로 인식하는 기능을 갖고 있다. 따라서 별다른 설정 없이 이를 사용하기만 해도 서버의 트랜잭션 매니저/서비스와 연동해서 동작한다.
+
+```java
+PlatformTransactionManager txManager = new JTATransactionManager();
+```
+
+- 하디만 어떤 트랜잭션 매니저 구현 클래스를 사용할지 UserService가 알고 있음 -> DI 원칙 위배
+=> 컨테이너를 통해 외부에서 제공받게 하는 스프링 DI 방식으로 바꾸자.
+
+```java
+// 5-46. 트랜잭션 매니저를 빈으로 분리시킨 UserService
+public class UserService {
+  ...
+  private PlatformTransactionManager transactionManager;
+
+  public void setTransactionManger(PlatformTransactionManager transactionManager) {
+    // 프로퍼티 이름은 관례를 따라 transactionManager라고 만드는 것이 편리
+    this.transactionManager = transactionManager;
+  }
+
+  public void upgradeLevels() {
+    TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+    try {
+      List<User> users = userDao.getAll();
+      ... 생략 ...
+    }
+    this.transactionManager.commit(status);
+  } catch (RuntimeException e) {
+    this.transactionManager.rollback(status);
+    throw e;
+  }
+}
+```
+```xml
+// 5-47. 트랜잭션 매니저 빈을 등록한 설정 파일
+<bean id="userService" class="springbook.user.service.UserService">
+  <property name="userDao" ref="userDao" />
+  <property name="transactionManager ref="transactionManager" />
+</bean>
+
+<bean id="transactionManager"
+  class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+  <property name="dataSource" ref="dataSource" />
+</bean>
+```
+```java
+// 5-48. 트랜잭션 매니저를 수동 DI 하도록 수정한 테스트
+public class UserServiceTest {
+  @Autowired
+  PlatformTransactionManager transactionManager;
+
+  @Test
+  public void upgradeAllOrNothing() throws Exception {
+    ...
+    // userService 빈의 프로퍼티 설정과 동일한 수동 DI
+    testUserService.setUserDao(userDao);
+    testUserService.setTransactionManager(transactionManager);
+    ...
+  }
+}
+```
+- 트랜잭션을 JTA를 이용하는 것으로 바꾸고 싶다면 설정 파일의 transactionManager 빈의 설정만 다음과 같이 고치면 된다.
+  ```xml
+  <bean id="transactionManager"
+    class="org.springframework.transaction.jta.JtaTransactionManager" />
+  ```
