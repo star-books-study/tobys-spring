@@ -1120,3 +1120,90 @@ private void sendUpgradeEMail(User user) {
 - 개발 중이거나 테스트를 수행할 때는 JavaMail을 대신할 수 있는, 그러나 JavaMail을 사용할 때와 동일한 인터페이스를 갖는 코드가 동작하도록 만들어도 될 것이다.
 
 ### 5.4.3 테스트를 위한 서비스 추상화
+- JavaMail 대신에 JavaMail과 같은 인터페이스를 갖는 오브젝트를 만들어서 사용하면 문제는 해결된다.
+- 마치 DataSource 인터페이스를 이용해 DB 연결을 가져오게 해서 운영 DB 서버 대신 개발자 PC에 설치한 가벼운 DB를 사용할 수 있도록 바꿔치기한 것과 비슷하다.
+#### JavaMail을 이용한 테스트의 문제점
+- 그런데 JavaMail의 핵심 API에는 DataSource처럼 인터페이스로 만들어져서 구현을 바꿀 수 있는 게 없다.
+- JavaMail에서 메일 발송을 위해 가장 먼저 생성해야 하는 javax.mail.Session은 인터페이스가 아니라 클래스다.
+- 게다가 생성자도 모두 private로 되어 있어서 직접 생성도 불가능 하며, 더이상 상속도 불가능한 final 클래스다.
+- MailMessage도 전송 기능을 맡고 있는 Transport도 마찬가지다.
+➡️ 결국 확장이 불가능하다.
+
+- 그렇다면 JavaMail 대신 테스트용 JavaMail로 대체해서 사용하는 것은 포기해야 할까?
+  ➡️ 물론 방법은 있다. 스프링은 JavaMail에 대한 **서비스 추상화** 기능을 제공하고 있다.
+
+#### 메일 발송 기능 추상화
+```java
+// 5-51. JavaMail의 서비스 추상화 인터페이스
+...
+public interface MailSender {
+  void send(SimpleMailMessage simpleMessage) throws MailException;
+  void send(SimpleMailMessage[] simpleMessages) throws MailException;
+}
+```
+- SimpleMailMessage라는 인터페이스를 구현한 클래스에 담긴 메일 메시지를 전송하는 메서드로만 구성
+- JavaMail을 사용해 메일 발송 기능을 제공하는 JavaMailSenderImpl 클래스를 이용하면 된다.
+
+```java
+// 5-52. 스프링의 MailSender를 이용한 메일 발송 메서드
+private void sendUpgradeEMail(User user) {
+  JavaMailSenderImpl mailSender = new JavaMailSenderImpl(); // MailSender 구현 클래스의 오브젝트를 생성한다.
+  mailSender.setHost("mail.server.com");
+
+  // MailMessage 인터페이스의 구현 클래스 오브젝트를 만들어 메일 내용 작성
+  SimpleMailMessage mailMessage = new SimpleMailMessage();
+  mailMessage.setTo(user.getEmail());
+  mailMessage.setFrom("useradmin@ksug.org");
+  mailMessage.setSubject("Upgrade 안내");
+  mailMessage.setText("사용자 님의 등급이 " + user.getLevel().name());
+
+  mailSender.send(mailMessage);
+}
+```
+- 지저분한 try/catch 블록 사라짐
+- 스프링이 예외 처리 원칙에 따라서 JavaMail을 처리하는 중에 발생한 각종 예외를 MailException이라는 런타임 예외로 포장해서 던져줌.
+
+- 코드는 간결해졌지만 아직은 JavaMail API를 사용하지 않는 테스트용 오브젝트로 대체할 수는 없다.
+- JavaMail API를 사용하는 JavaMailSenderImpl 클래스의 오브젝트를 코드에서 직접 사용하기 때문
+  ➡️ 이제 스프링의 DI를 적용하자.
+```java
+// 5-53. 메일 전송 기능을 가진 오브젝트를 DI 받도록 수정한 UserService
+public class UserService {
+  ...
+  private MailSender mailSender;
+
+  public void setMailSender(MailSender mailSender) {
+    this.mailSender = mailSender;
+  }
+
+  private void sentUpgradeEmail(User user) {
+    SimpleMailMessage mailMessage = new SimpleMailMessage();
+    mailMessage.setTo(user.getEmail());
+    mailMessage.setFrom("useradmin@ksug.org");
+    mailMessage.setSubject("Upgrade 안내");
+    mailMessage.setText("사용자 님의 등급이 " + user.getLevel().name());
+  
+    this.mailSender.send(mailMessage);
+  }
+}
+```
+
+```java
+// 5-54. 메일 발송 오브젝트의 빈 등록
+<bean id="userService" class="springbook.user.service.UserService">
+  ...
+  <property name="mailSender" ref="mailSender" />
+</bean>
+
+<bean id="mailSender" class="org.springframework.mail.javamail.JavaMailSenderImpl">
+  <property name="host" value="mail.server.com" />
+</bean>
+```
+
+#### 테스트용 메일 발송 오브젝트
+- 스프링이 제공한 메일 전송 기능에 대한 인터페이스가 있으니 이를 구현해서 테스트용 메일 전송 클래스를 만들어보자.
+- 테스트가 수행될 때는 JavaMail을 사용해서 메일을 전송할 필요가 없다. 그냥 아무것도 하지 않는 MailSender 구현 빈 클래스를 만들어보자.
+```java
+// 5-55. 아무런 기능이 없는 MailSender 구현 클래스
+
+  
