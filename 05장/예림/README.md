@@ -1205,5 +1205,57 @@ public class UserService {
 - 테스트가 수행될 때는 JavaMail을 사용해서 메일을 전송할 필요가 없다. 그냥 아무것도 하지 않는 MailSender 구현 빈 클래스를 만들어보자.
 ```java
 // 5-55. 아무런 기능이 없는 MailSender 구현 클래스
+...
+publci class DummyMailSender implements MailSender {
+  public void send(SimpleMailMessage mailMessage) throws MailException {
+  }
 
-  
+  public void send(SimpleMailMessage[] mailMessage[] mailMessage) throws MailException {
+  }
+```
+- 다음은 테스트 설정 파일의 mailSender 빈 클래스를 JavaMail을 사용하는 JavaMailSenderImpl 대신 DummyMailSender로 변경한다.
+  (코드 생략)
+- 이제 테스트를 수행해보자. UserService에 새로운 DI용 프로퍼티가 추가 됐으니 수동 DI 방식을 사용한 upgradeAllOrNothing() 메서드에도 mailSender를 추가해주자.
+```java
+// 5-56. 테스트용 UserService를 위한 메일 전송 오브젝트의 수동 DI
+public class UserServiceTest {
+  ...
+  @Autowird
+  MailSender mailSender;
+
+  @Test
+  public void upgradeAllOrNothin() throws Exception {
+    ...
+    testUserService.setMailSender(mailSender);
+
+```
+
+#### 테스트와 서비스 추상화
+- 스프링이 제공하는 MailSender 인터페이스를 핵심으로하는 메일 전송 서비스 추상화의 구조
+  <img width="499" alt="스크린샷 2024-06-22 오후 4 26 44" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/b0142a11-c932-4354-a011-e302be5c42a1">
+
+- 서비스 추상화가 JavaMail의 경우처럼 **테스트를 어렵게 만드는 건전하지 않은 방식으로 설계된 API를 사용할 때도 유용하게 쓰일 수 있다.**
+- JavaMail이 아닌 다른 메시징 서버의 API를 이용해 메일을 전송해야 하는 경우가 생겨도, 해당 API를 사용하는 MailSender 구현 클래스를 만들어서 DI 해주면 된다.
+- 추상화 계층을 이용할 수 있는 응용방법이 많다.
+  - UserService와 같은 애플리케이션 계층의 코드는 아래 계층에서는 어떤 일이 상관 없이 메일 발송을 요청한다는 기본 기능에 충실하게 작성하면 된다.
+ 
+- 사실 지금 만든 코드에는 메일 발송 작업에 트랜잭션 개념이 빠져있다.
+- 이 문제를 해결하려면 두 가지 방법을 사용할 수 있다.
+  (1) 메일을 업그레이드할 사용자를 발견했을 때마다 발송하지 않고 발송 대상을 별도의 목록에 저장해두었다가 업그레이드 작업이 모두 성공적으로 끝났을 떄 한 번에 메일 전송
+    - 단점 : 메일 저장용 리스트 등을 파라미터로 계속 갖고 다녀야 한다.
+  (2) MailSender를 확장해서 메일 전송에 트랜잭션 개념 적용
+    - MailSender를 구현한 트랜잭션 기능이 있는 메일 전송용 클래스를 만든다.
+    - 이 오브젝트에 업그레이드 작업 이전에 새로운 메일 전송 작업 시작을 알려주고, 그 때부터는 send() 메서드를 호출해도 실제로 메일을 발송하지 않고 저장해둔다.
+    - 업그레이드 작업이 끝나면 MailSender에 지금까지 저장된 메일을 모두 발송하고, 예외가 발생하면 모두 취소하게 할 수 있다.
+- 두 가지 전략이 비슷하지만 후자가 서로 다른 종류의 작업을 분리해 처리한다는 면에서 장점이 있다.
+
+### 5.4.4 테스트 대역
+#### 의존 오브젝트의 변경을 통한 테스트 방법
+- UserDaoTest를 통해 테스트가 진행될 떄의 상황
+  <img width="524" alt="스크린샷 2024-06-22 오후 4 35 39" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/f57ebef4-a593-41b4-b3ba-f62c6eca9fd9">
+  - 테스트에서는 운영 DB의 연결도, WAS의 DB 풀링 서비스의 사용도 번거로운 짐이 될 뿐이다.
+  - 하지만 UserDao가 제 기능을 수행하려면 반드시 DB를 사용해야 하기에 무시할 수는 없다.
+  - 그래서 이를 대신할 수 있도록 테스트환경에서도 잘 동작하고, 준비 과정도 간단한 DataSource를 사용하고, DB도 개발자 PC에 설치해서 사용해도 무방한 가벼운 버전을 이용하게 했다.
+- UserService의 테스트 구조
+  <img width="514" alt="스크린샷 2024-06-22 오후 4 38 00" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/2e82c58c-0585-4ed4-bc8b-14fd6abc8cd1">
+
