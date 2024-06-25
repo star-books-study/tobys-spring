@@ -54,3 +54,59 @@ private void upgradeLevelsInternal() {
 
 - 다음과 같이 UserService를 인터페이스로 만들고 UserService의 구현 클래스를 만들어넣도록 하면 클라이언트와 결합이 약해지고, 직접 구현 클래스에 의존하고 있지 않기 때문에 유연한 확장이 가능해진다.
 <img width="348" alt="스크린샷 2024-06-24 오후 5 09 45" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/bdf14d95-543c-4bce-a9b0-a003779a14e9">
+
+- 한 번에 두 개의 UserService 인터페이스 구현 클래스를 동시에 이용한다면 어떨까? UserService를 구현한 또 다른 구현 클래스를 만드는 것이다.
+- 이 클래스는 단지 트랜잭션 경계 설정이라는 책임을 맡고 있을 뿐이다.
+- 그리고 또 다른 UserService 구현 클래스에 실제적인 로직 처리 작업은 위임하는 것이다.
+
+<img width="566" alt="image" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/e5d3202b-ee9f-43be-812c-08e682acc682">
+
+#### UserService 인터페이스 도입
+- 기존의 UserService 클래스명을 UserServiceImpl로 변경하고 클라이언트가 사용할 로직을 담은 핵심 메서드만 UserService 인터페이스로 만들기
+```java
+// 6-3. UserService 인터페이스
+public interface UserService {
+    void add(User user);
+    void upgradeLevels();
+}
+```
+```java
+// 7-4. 트랜잭션 코드를 제거한 UserService 구현 클래스
+...
+public class UserServiceImpl implements UserService {
+    UserDao userDao;
+    MailSender mailSender;
+
+    public void upgradeLevels() {
+        List<User> users = userDao.getAll();
+        for(User user : users) {
+            if(canUpdateLevel(user)) {
+                upgradeLevel(user);
+            }
+        }
+    }
+}
+```
+#### 분리된 트랜잭션 기능
+```java
+// 6-5. 위임 기능을 가진 UserServiceTx 클래스
+...
+public UserServiceTx implements UserService {
+    UserService userService;
+
+    // UserService를 구현한 다른 오브젝트를 DI 받는다.
+    public void setUserService(UserService userService) {
+        this.userService = userService;
+    }
+
+    // DI 받은 UserService 오브젝트에 모든 기능을 위임한다.
+    public void add(User user) {
+        userService.add(user);
+    }
+
+    // DI 받은 UserService 오브젝트에 모든 기능을 위임한다.
+    public void upgradeLevels() {
+        userService.upgradeLevels();
+    }
+}
+```
