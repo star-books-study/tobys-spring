@@ -25,3 +25,29 @@ public void upgradeLevels() throws Exception {
     }
 }
 ```
+- 비즈니스 로직 담당 코드를 메소드로 추출하여 비즈니스 로직과 트랜잭션 경계설정을 분리해보자.
+```java
+public void upgradeLevels() throws Exception {
+    TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+    
+    try {
+        upgradeLevelsInternal();
+    
+        this.transactionManager.commit(status);
+    } catch (Exception e) {
+        this.transactionManager.rollback(status);
+        throw e;
+    }
+}
+
+private void upgradeLevelsInternal() {
+    List<User> users = userDao.getAll();
+        for (User user : users) {
+            if (canUpgradeLevel(user)) {
+                upgradeLevel(user);
+            }
+        }
+}  
+```
+
+### 6.1.2. DI 를 이용한 클래스의 분리
