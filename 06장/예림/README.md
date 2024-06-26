@@ -110,3 +110,22 @@ public UserServiceTx implements UserService {
     }
 }
 ```
+- 이렇게 준비된 UserServiceTex에 트랜잭션 경계 설정 작업을 부여해보자.
+```java
+// 6-6. 트랜잭션이 적용된 UserServiceTx
+public class UserServiceTex implements UserService {
+    UserService userService;
+    PlatformTransactionManager transactionManager;
+
+    public void setTransactionManager (PlatformTransationManager transactionManaer) {
+            this.transactionManager = transactionManager;
+    }
+
+    public void setUserService(UserService userService) {
+        ...
+    }
+
+    ...
+
+    public void upgradeLevels() {
+        TransactionStatus status = 
