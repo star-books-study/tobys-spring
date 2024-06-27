@@ -128,4 +128,23 @@ public class UserServiceTex implements UserService {
     ...
 
     public void upgradeLevels() {
-        TransactionStatus status = 
+        TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDenition());
+        try {
+            userService.upgradeLevels();
+
+            this.transactionMananager.commit(status);
+        } catch (RuntimeException e) {
+            this.transactionManager.rollback(status);
+            throw e;
+        }
+    }
+}
+```
+#### 트랜잭션 적용을 위한 DI 설정
+- 클라이언트가 UserService 인터페이스를 통해 사용자 관리 로직을 이용하려고 할 때, 먼저 트랜잭션을 담당하는 오브젝트가 사용돼서 트랜잭션에 관련된 작업을 진행해주고, 사용자 관리 로직을 담은 오브젝트가 이후에 호출돼서 비즈니스 로직에 관련된 작업을 수행하도록 만들어야 한다.
+
+<img width="551" alt="스크린샷 2024-06-27 오후 7 43 19" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/37072770-7a21-453b-baa2-1dabcafaa298">
+
+
+```java
+// 6-7. 트랜잭션 오브젝트가 추가된 설정 파일
