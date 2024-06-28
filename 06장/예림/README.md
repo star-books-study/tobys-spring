@@ -146,5 +146,18 @@ public class UserServiceTex implements UserService {
 <img width="551" alt="스크린샷 2024-06-27 오후 7 43 19" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/37072770-7a21-453b-baa2-1dabcafaa298">
 
 
-```java
+```xml
 // 6-7. 트랜잭션 오브젝트가 추가된 설정 파일
+<bean id="userService" class="springbook.user.service.UserServiceTx">
+    <property name="transactionManager" ref="transactionManager" />
+    <property name="userService" ref="userServiceImpl" />
+</bean>
+
+<bean id="userServiceImpl" class="springbook.user.service.UserServiceImpl">
+    <property name="userDao" value="userDao" />
+    <property name="mailSender" ref="mailSender" />
+</bean>
+```
+- 이제 클라이언트는 UserServiceTx 빈을 호출해서 사용하도록 만들어야 한다.
+- 따라서 userService라는 대표적인 빈 아이디는 UserServiceTex 클래스로 정의된 빈에 부여해준다.
+#### 트랜잭션 분리에 따른 테스트 수정
