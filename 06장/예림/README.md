@@ -161,3 +161,11 @@ public class UserServiceTex implements UserService {
 - 이제 클라이언트는 UserServiceTx 빈을 호출해서 사용하도록 만들어야 한다.
 - 따라서 userService라는 대표적인 빈 아이디는 UserServiceTex 클래스로 정의된 빈에 부여해준다.
 #### 트랜잭션 분리에 따른 테스트 수정
+- 기존의 UserService 클래스가 인터페이스와 두 개의 클래스로 분리된 만큼 테스트도 변경해야 한다.
+- 현재 수정한 스프링 설정 파일에는 UserService라는 인터페이스 타입을 가진 빈이 두 개 존재한다. **UserService 클래스 타입의 빈을 @Autowired로 가져오면 어떤 빈을 가져올까?**
+- @Autowired는 타입으로 하나의 빈을 결정할 수 없는 경우에는 필드 이름을 이용해 찾는다. 따라서 다음과 같은 userService 변수를 설정해두면 **아이디가 userService인 빈이 주입**될 것이다.
+  ```java
+  @Autowired UserService userService;
+  ```
+- UserServiceTest는 UserServcieImpl 클래스로 정의된 빈을 가져와야 한다.
+- MailSender를 DI해줄 대상을 구체적으로 알고 있어야 하기 때문에 UserServiceImpl 클래스의 오브젝트를 가져올 필요가 있다.
