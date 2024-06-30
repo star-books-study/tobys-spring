@@ -293,3 +293,145 @@ private void checkLevelUpgraded(User user, boolean upgraded) {
 }
 ```
 - 실제 UserDao와 DB까지 직접 의존하고 있는 (1)과 (4) 테스트 방식도 목 오브젝트를 만들어 적용해보겠다.
+- 목 오브젝트는 기본적으로 스텁과 같은 방식으로 테스트 대상을 통해 사용될 때 필요한 기능을 지원해줘야 한다.
+- upgradeLevels() 메서드가 실행되는 중에 **UserDao와 어떤 정보를 주고받는지 입출력 내역을 먼저 확인할 필요가 있다.**
+- upgradeLevels()와 그 사용 메서드에서 UserDao를 사용하는 경우는 두 가지다.
+```java
+// 6-1. 사용자 레벨 업그레이드 작업 중에 UserDao를 사용하는 코드
+public void upgradeLevels() {
+    List<User> users = userDao.getAll(); // (1) 업그레이드 후보 사용자 목록을 가져온다.
+    for(User user : users) {
+        if(canUpgradeLevel(user)) {
+            upgradeLevel(user);
+        }
+    }
+}
+
+protected void upgradeLevel(User user) {
+    user.upgradeLevel();
+    userDao.upgrade(user); // (2) 수정된 사용자 정보를 DB에 반영한다.
+    sendUpgradeEmail();
+}
+```
+- (1) 기능을 테스트용으로 대체 ➡️ 테스트용 UserDao에서는 DB에서 읽어온 것처럼 미리 준비된 사용자 목록을 제공해줘야 한다.
+- (2) 기능을 테스트용으로 대체 ➡️ 리턴 값이 없으므로 아무런 내용도 없는 빈 메서드로 만들어도 된다. 하지만 update() 메서드의 내용은 '변경'이 되었는지 검증할 수 있는 중요한 기능이기도 하다.
+- 따라서 getAll()에 대해서는 스텁으로서, update()에 대해서는 목 오브젝트로서 동작하는 UserDao로서 동작하는 UserDao 타입의 테스트 대역이 필요하다.
+- 이 클래스의 이름을 MockUserDao라고 하자.
+```java
+// 6-12. UserDao 오브젝트
+static class MockUserDao implements UserDao {
+    private List<User> users; // 레벨 업그레이드 후보 User 오브젝트 목록
+    private List<User> updated = new ArrayList(); // 업그레이드 대상 오브젝트를 저장해둘 목록
+
+    private MockUserDao(List<User> users) {
+        this.users = users;
+    }
+
+    public List<User> getUpdated() {
+        return this.updated;
+    }
+
+    // 스텁 기능 제공
+    public List<User> getAll(); {
+        return this.users;
+    }
+
+    // 목 오브젝트 기능 제공
+    public void update(User user) {
+        updated.add(user);
+    }
+
+    // 테스트에 사용되지 않는 메서드
+    public void add(User user) { throw new UnsupportedOperationException(); }
+    public void deleteAll() { throw new UnsupportedOperationException(); }
+    public void get(String id) { throw new UnsupportedOperationException(); }
+    public void getCount() { throw new UnsupportedOperationException(); }
+}
+```
+- MockUserDao는 UserDao 구현 클래스를 대신하니 implements 해야 한다.
+- 다만 이를 통해 사용하지 않을 메소드도 오버라이드 받게 되는데 이럴때는 UnsupportedOperationException을 던지도록 만드는 편이 좋다.
+- 해당 클래스에는 두 개의 User 타입 리스트가 있는데, 변수명 users는 처음 생성자가 생성될 때 전달받은 사용자 목록을 저장한 뒤 getAll() 메소드가 호출되면 전달하는 용도이다.
+- 다른 하나는 update() 메소드를 실행하면서 넘겨준 업그레이드 대상 User 오브젝트를 저장해뒀다가 검증을 위해 돌려주기 위한 것이다.이제 upgradeLevels() 테스트가 MockUserDao를 사용하도록 수정해보자.
+
+- 이제 upgradeLevels() 테스트가 MockUserDao를 사용하도록 수정해보자.
+```java
+// 6-13. MockUserDao를 사용해서 만든 고립된 테스트
+@Test
+public void upgradeLevels() throws Exception{
+
+    // 고립된 테스트에서는 테스트 대상 오브젝트를 직접 생성하면 된다.
+    UserServiceImpl userServiceImpl = new UserServiceImpl();
+
+    // 목 오브젝트로 만든 UserDao를 직접 DI 해준다.
+    MockUserDao mockUserDao = new MockUserDao(this.users);
+    userServiceImpl.setUserDao(mockUserDao);
+
+    // 메일 발송 여부 확인을 위해 목 오브젝트 DI
+    MockMailSender mockMailSender = new MockMailSender();
+    userServiceImpl.setMailSender(mockMailSender);
+
+    // 테스트 대상 실행
+    userServiceImpl.upgradeLevels();
+
+    List<User> updated = mockUserDao.getUpdated();
+    assertThat(updated.size(), is(2));
+    chekcUserAndLevel(updated.get(0), "joytouch", Level.SILVER);
+    chekcUserAndLevel(updated.get(1), "madnite1", Level.GOLD);
+
+
+    // 목 오브젝트를 이용한 결과 확인.
+    // 목 오브젝트에 저장된 메일 수신자 목록을 가져와 업그레이드 대상과 일치하는지 확인 한다.
+    List<String> request = mockMailSender.getRequests();
+    assertThat(request.size(), is(2));
+    assertThat(request.get(0), is(users.get(1).getEmail()));
+    assertThat(request.get(1), is(users.get(3).getEmail()));
+
+}
+```
+- 고립된 테스트 이전에는 @Autowired를 통해 가져온 UserService 타입의 빈이었다.
+- 이제는 완전히 고립되어 테스트만을 위해서 사용할 것이기에 스프링 컨테이너에서 가져올 필요 없이 직접 생성한다.
+- 이후 UserServiceImpl 오브젝트의 메소드를 실행시키면 된다.
+- 이후 update()를 이용해 몇 명의 사용자 정보를 DB에 수정하려고 했는지, 그 사용자들이 누구인지, 어떤 레벨로 변경됐는지를 확인하면 된다.
+- 이렇게 고립된 테스트를 하면 테스트가 다른 의존 대상에 영향을 받을 경우를 대비해 복잡하게 준비할 필요가 없을 뿐만 아니라, 테스트 수행 성능도 크게 향상된다.
+- 고립된 테스트를 만들려면 목 오브젝트 작성과 같은 약간의 수고가 더 필요할 지 모르겠지만, 그 보상은 충분히 기대할 만 하다.
+### 6.2.3 단위 테스트와 통합 테스트
+- upgradeLevels() 테스트처럼 '테스트 대상 클래스를 목 오브젝트 등의 테스트 대역을 이용해 의존 오브젝트나 외부의 리소스를 사용하지 않도록 고립시켜서 테스트하는 것'을 단위테스트, 반면에 두개 이상의, 성격이나 계층이 다른 오브젝트가 연동하도록 만들어 테스트하거나, 또는 외부의 DB 파일, 서비스 등의 리소스가 참여하는 테스트는 통합테스트 이다.
+
+### 6.2.4 목 프레임워크
+- 단위 테스트가 많은 장점이 있고 가장 우선시해야 할 테스트 방법인 건 사실이지만 작성이 번거롭다는 것이 문제이다.
+- 특히 목 오브젝트를 만드는 일이 가장 큰 점이다. 다행히도, 이런 번거로운 목 오브젝트를 편리하게 작성하도록 도와주는 다양한 목 오브젝트 지원 프레임워크가 있다.
+
+#### Mockito 프레임워크
+```java
+// 6-14. Mockito를 적용한 테스트 코드
+@Test
+public void mockUpgradeLevels() throws Exception{
+    UserServiceImpl userServiceImpl = new UserServiceImpl();
+
+    // 다이나믹한 목 오브젝트 생성과 메소드의 리턴 값 설정, 그리고 DI까지 세 줄이면 충분하다.
+    UserDao mockUserDao = mock(UserDAO.class);
+    when(mockUserDao.getAll()).thenReturn(this.users);
+    userServiceImpl.setUserDao(mockUserDao);
+
+    // 리턴 값이 없는 메소드를 가진 목 오브젝트는 더욱 간단하게 만들 수 있다.
+    MailSender mockMailSender = mock(MailSender.class);
+    userServiceImpl.setMailSender(mockMailSender);
+
+    userServiceImpl.upgradeLevels();
+
+    // 목 오브젝트가 제공하는 검증 기능을 통해서 어떤 메소드가 몇 번 호출 됐는지, 파라미터는 무엇인지 확인할 수 있다.
+    verify(mockUserDao, times(2)).update(any(User.class));
+    verify(mockUserDao).update(users.get(1));
+    assertThat(users.get(1).getLevel(), is(Level.SILVER));
+    verify(mockUserDao).update(users.get(3));
+    assertThat(users.get(3).getLevel(), is(Level.GOLD));
+
+    // Mockito 프레임워크의 툴 사용법으로써 배우지 않은 부분이니 그냥 보내질 메일 주소를 확인한다고 알고 있자.
+    ArgumentCaptor<SimpleMailMessage> mailMessageArg = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    verify(mockMailSender, times(2)).send(mailMessageArg.capture());
+    List<SimpleMailMessage> mailMessages = mailMessageArg.getAllValues();
+    assertThat(mailMessages.get(0).getTo()[0], is(users.get(1).getEmail()));
+    assertThat(mailMessages.get(1).getTo()[0], is(users.get(3).getEmail()));
+}
+```
+- 다만, 제대로 사용하기 위해서는 Mockito 프레임워크의 툴을 알아두어야 하며 이를 알아둔다면 단위 테스트를 만들때 유용하게 사용될 수 있다는 것을 알아두자.
