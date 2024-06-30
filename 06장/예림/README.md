@@ -167,5 +167,62 @@ public class UserServiceTex implements UserService {
   ```java
   @Autowired UserService userService;
   ```
-- UserServiceTest는 UserServcieImpl 클래스로 정의된 빈을 가져와야 한다.
+- UserServiceTest는 UserServcieImpl 클래스로 정의된 빈도 가져와야 한다.
+- 일반적인 UserService 기능 테스트에서는 UserService 인터페이스를 통해 결과를 확인하는 것으로 충분하다. 그러나 목 오브젝트를 이용한 테스트에서는 테스트에서 직접 MailSender를 DI해줘야 할 필요가 있었다.
 - MailSender를 DI해줄 대상을 구체적으로 알고 있어야 하기 때문에 UserServiceImpl 클래스의 오브젝트를 가져올 필요가 있다.
+- 이렇게 목 오브젝트를 이용해 수동 DI를 적용하는 테스트라면 어떤 클래스의 오브젝트인지 분명하게 알 필요가 있다.
+- 그래서 다음과 같이 UserServiceImpl 클래스 타입의 변수를 선언하고 @Autowired를 지정해서 해당 클래스로 만들어진 빈을 주입 받도록 해야 한다.
+```java
+@Autowired UserServiceImpl userServiceImpl;
+```
+- upgradeLevels() 테스트 메서드도 다음과 같이 별도로 가져온 userServiceImpl 빈에 MailSender의 목 오브젝트를 설정해줘야 한다.
+```java
+@Test
+public void upgradeLevels() throws Exception {
+    ...
+    MockMailSender mockMailSender = new MockMailSender();
+    userServiceImpl.setMailSender(mockMailSender);
+```
+- add() 테스트 메서드는 손댈 것이 없지만 upgradeAllNothing() 테스트는 트랜잭션 기술이 바르게 적용되었는지 확인하기 위한 일종의 학습 테스트이기 때문에 변경이 필요하다.
+- 기존에는 TestUserService가 오브젝트를 만들어서 의존 오브젝트를 넣어주고서 테스트를 진행했다.
+- 이제는 예외를 발생시킬 위치가 UserServiceImpl에 있기 때문에 TestUserService가 트랜잭션 기능은 빠진 UserServiceImpl을 상속하도록 해야 한다.
+- 또한 TestUserService 오브젝트를 UserServiceTx 오브젝트에 수동 DI 시킨 후에 트랜잭션 기능까지 포함된 UserServiceTx의 메서드를 호출하면서 테스트를 수행하도록 해야 한다.
+```java
+// 6-9. 분리된 테스트 기능이 포함되도록 수정한 upgradeAllOrNothing()
+@Test
+public void upgradeAllOrNothing() throws Exception {
+    TestUserService testUserService = new TestUserService(users.get(3).getId());
+    testUserService.setUserDao(userDao);
+    testUserService.setMailSender(mailSender);
+
+    // 트랜잭션 기능을 분리한 UserServiceTx는 예외 발생용으로 수정할 필요가 없으니 그대로 사용
+    UserServiceTx txUserService = new UserServiceTx();
+    txUserService.setTransactionManager(transactionManager);
+    txUserService.setUserService(testUserService);
+
+    userDao.deleteAll();
+    for(User user : users) userDao.add(user);
+
+    try {
+        txUserService.upgraeLevels(); // 트랜잭션 기능을 분리한 오브젝트를 통해 예외 발생용 TestUserService가 호출되게 해야 한다.
+        fail("TestUserServiceException expected");
+    }
+    ...
+```
+- 트랜잭션 테스트용으로 특별히 정의한 TestUserService 클래스는 이제 UserServiceImpl 클래스를 상속하도록 바꿔주면 된다.
+```java
+static class TestUserService extends UserServiceImpl {
+```
+
+#### 트랜잭션 경계 설정 코드 분리의 장점
+**1. 비즈니스 로직을 담당하는 코드를 작성할 때 트랜잭션과 같은 기술적인 내용에는 신경쓰지 않아도 된다.**
+
+- 트랜잭션은 DI를 이용해 UserServiceTx와 같은 트랜잭션 기능을 가진 오브젝트가 먼저 실행되도록 만들기만 하면 된다.
+- 스프링이나 트랜잭션 같은 로우레벨의 기술적인 지식은 부족한 개발자라고 할지라도 비즈니스 로직을 잘 이해하고 자바 언어의 기초에 충실하면 복잡한 비즈니스 로직을 담은 UserService 클래스 개발 가능
+  
+**2. 비즈니스 로직에 대한 테스트를 손쉽게 만들어낼 수 있다.**
+- 다음 절에서 좀 더 자세히 알아보자.
+
+
+
+## 6.2 고립된 단위 테스트
