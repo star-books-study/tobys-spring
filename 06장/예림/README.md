@@ -474,3 +474,14 @@ public void mockUpgradeLevels() throws Exception{
 - 프록시가 직접 타깃을 사용하도록 고정시킬 필요도 없다.
 - 이를 위해 데코레이터 패턴에서는 같은 인터페이스를 구현한 타겟과 여러 개의 프록시를 사용할 수 있다.
 - 프록시가 여러 개인만큼 순서를 정해서 단계적으로 위임하는 구조로 만들면 된다.
+
+- 예를 들어 소스코드를 출력하는 기능을 가진 핵심 기능이 있다고 하자. 이 클래스에 데코레이터 개념을 부여해서 타깃과 같은 인터페이스를 구현하는 프록시를 만들 수 있다.
+  
+  <img width="667" alt="스크린샷 2024-07-03 오후 10 05 50" src="https://github.com/star-books-coffee/tobys-spring/assets/101961939/d5c67f4c-dd74-450d-956a-ad0af9ac31dc">
+- 프록시로서 동작하는 데코레이터는 위임하는 대상에도 인터페이스로 접근하기 때문에 자신이 최종 타깃으로 위임하는지, 아니면 다음 단계의 데코레이터 프록시로 위임하는지 알지 못한다.
+- 그래서 다음 위임 대상은 인터페이스로 선언하고 생성자나 수정자 메서드를 통해 **위임 대상을 외부에서 런타임 시에 주입 받을 수 있도록 만들어야 한다.**
+- 데코레이터 패턴의 대표적인 예 : InputStream과 OutputStream
+  ```java
+  InputStream is = new BufferedInputream(new FileInputStream("a.txt"));
+  ```
+- UserService 인터페이스를 구현한 타깃인 UserServiceImpl에 트랜잭션 부가 기능을 제공해주는 UserServiceTx를 추가한 것도 데코레이터 패턴을 적용한 것이라 볼 수 있다. (수정자로 UserServiceTx에 위임할 타깃인 UserServiceImpl 주입)
