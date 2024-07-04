@@ -485,3 +485,27 @@ public void mockUpgradeLevels() throws Exception{
   InputStream is = new BufferedInputream(new FileInputStream("a.txt"));
   ```
 - UserService 인터페이스를 구현한 타깃인 UserServiceImpl에 트랜잭션 부가 기능을 제공해주는 UserServiceTx를 추가한 것도 데코레이터 패턴을 적용한 것이라 볼 수 있다. (수정자로 UserServiceTx에 위임할 타깃인 UserServiceImpl 주입)
+- 인터페이스를 통한 데코레이터 정의와 런타임 시의 다이내믹한 구성 방법은 **스프링의 DI**를 이용하면 편하다. 데코레이터 빈의 프로퍼티로 같은 인퍼에시를 구현한 다른 데코레이터 또는 타깃 빈을 설정하면 된다.
+
+```java
+// 6-15. 데코레이터 패턴을 위한 DI 설정
+<!-- 데코레이터 -->
+<bean id="userService" class="springbook.user.service.UserServiceTx">
+    <property name="transactionManager" ref="transactionManager" />
+    <property name="userService" ref="userServiceImpl" />
+</bean>
+
+<!-- 타깃 -->
+<bean id="userServiceImpl" class="springbook.user.service.UserServiceImpl">
+    <property name="userDao" ref="userDao" />
+    <property name="mailSender" ref="mailSender" />
+</bean>
+```
+
+- 데코레이터 패턴은 인터페이스를 통해 위임하는 방식 ➡️ 어느 데코레이터에서 타깃으로 연결될지 코드 레벨에서는 미리 알 수 없음.
+- 구성하기에 따라 여러 데코레이터 적용 가능
+- 데코레이터 패턴은 타깃의 코드를 손대지 않고, 클라이언트가 호출하는 방법도 변경하지 않은 채로 새로운 기능을 추가할 때 유용한 방법이다.
+
+#### 프록시 패턴
+- 일반적응로 사용하는 **프록시**라는 용어는 클라이언트와 사용 대상 사이에서 대리 역할을 맡은 오브젝트를 두는 방법을 총칭한다면, 디자인 패턴에서 말하는 프록시 패턴은 프록시를 사용하는 방법 중에서 타깃에 대한 접근 방법을 제어하려는 목적을 가진 경우를 가리킨다.
+- 프록시 패턴의 프록시는 타깃의 기능을 확장하거나 추가하지 않는다. 대신 클라이언트가 **타깃에 접근하는 방식**을 변경해준다.
