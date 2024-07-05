@@ -298,3 +298,4 @@ verify(mockUserDao, times(2)).update(any(User.class));
   - 클라이언트는 다이내믹 프록시 오브젝트를 **타깃 인터페이스를 통해 사용할 수 있다**
   - **프록시 팩토리에게 인터페이스 정보만 제공해주면 해당 인터페이스를 구현한 클래스의 오브젝트를 자동으로 만들어준다**
 ![alt text](image-5.png)
+- 부가 기능은 프록시 오브젝트와 독립적으로 InvocationHandler 를 구현한 오브젝트에 담는다
