@@ -532,9 +532,105 @@ public void mockUpgradeLevels() throws Exception{
 
 #### 프록시의 구성과 프록시 작성의 문베점
 - 프록시는 다음의 두 가지 기능으로 구성된다.
-  - 타깃과 같은 메서드를 구현하고 있다가 메서드가 호출되면 타깃 오브젝트로 위임한다.
-  - 지정된 요청에 대해서는 부가기능을 수행한다.
-- UserServiceTx는 기능 부가를 위한 프록시다. UserServiceTx는 이 두가지 기능을 구분해보자.
+  - 타깃과 같은 메서드를 구현하고 있다가 메서드가 호출되면 타깃 오브젝트로 **위임**한다.
+  - 지정된 요청에 대해서는 **부가기능**을 수행한다.
+- `UserServiceTx`는 기능 부가를 위한 프록시다. `UserServiceTx` 코드에서 이 두가지 기능을 구분해보자.
 
 ```java
 // 6-16. UserServiceTx 프록시의 기능 구분
+public class UserServiceTx implements UserService {
+    UserService userService; // 타깃 오브젝트
+    ...
+
+    // 메서드 구현과 위임
+    public void add(User user) {
+        this.userService.add(user);
+    }
+
+    public void upgradeLevels() { // 메서드 구현
+        // 부가 기능 수행
+        TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+        try {
+            // 위임
+            userService upgradeLevels(); 
+
+            // 부가 기능 수행 이어서
+            this.transactionManager.commit(status);
+        } catch(RuntimeException e) {
+            this.transactionManager.rollback(status);
+            throw e;
+            // 부가 기능 수행 끝
+        }
+    }
+}
+```
+
+
+- 그렇다면 프록시를 만들기 번거로운 이유는 무엇일까?
+
+  - 타깃 인터페이스를 구현하고 위임하는 코드를 **작성하기 번거롭다.** 부가기능이 필요 없는 메서드도 구현해서 타깃으로 위임하는 코드를 일일히 만들어줘야 한다. 또 타깃 인터페이스의 메서드가 추가되거나 변경될 때마다 함꼐 수정해줘야 한다는 부담도 있다.
+
+  - 부가 기능 **코드가 중복**될 가능성이 많다.
+
+- 트랜잭션 외의 프록시를 활용할만한 부가기능, 접근제어 기능은 일반적인 성격을 띤 것이 많아 다양한 타깃 클래스와 메서드에 중복돼서 나타날 가능성이 높다.
+- 두 번째 문제는 코드를 분리해 어떻게든 해결할 수 있지만 첫 번째 문제는 간단해 보이지 않는다. 바로 이런 문제를 해결하는 데 유용한 것이 JDK의 **다이내믹 프록시**다.
+
+#### 리플렉션
+- 다이내믹 프록시는 리플렉션 기능을 이용해 프록시를 만들어준다.
+  - 리플랙션 : 자바의 코드 자체를 추상화해서 접근하도록 만든 것
+- 리플렉션 API 중에서 메서드에 대한 정의를 담은 Method라는 인터페이스를 이용해 메서드를 호출하는 방법을 알아보자.
+  - String 클래스의 정보를 담은 Class 타입의 정보는 `String.class`라고 하면 가져올 수 있다.
+  - 또는 스트링 오브젝트 name이 있으면 `name.getClass()`라고 해도 된다.
+  - 그리고 이 클래스 정보에서 특정 이름을 가진 메서드 정보를 가져올 수 있다. String의 length() 메서드라면 다음과 같이 하면 된다.
+    ```java
+    Method lengthMethod = String.class.getMethod("length");
+    ```
+  - 스트링이 가진 메서드 중에서 "length"의 이름을 갖고 있고, 파라미터는 없는 메서드의 정보를 가져오는 것이다.
+- java.lang.reflect.Method 인터페이스는 메서드에 대한 자세한 정보를 담고 있을 뿐만 아니라 이를 이용해 특정 오브젝트의 메서드를 실행시킬 수도 있다. Method 인터페이스에 정의된 `invoke()` 메서드를 사용하면 된다.
+- `invoke()` 메서드는 메서드를 실행시킬 대상 오브젝트(`obj`)와 파라미터 목록(`args`)를 받아서 메서드를 호출한 뒤에 그 결과를 `Object` 타입으로 돌려준다.
+```java
+public Object invoke(Object obj, Object ... args)
+```
+- 이를 이용해 length() 메서드를 다음과 같이 실행할 수 있다.
+```java
+int length = lengthMethod.invoke(name); // int length = name.length();
+```
+
+```java
+// 6-17. 리플렉션 학습 테스트
+...
+public class ReflectionTest {
+    @Test
+    public void invokeMethod() throws Exception {
+        String name = "Spring";
+
+        // length()
+        assertThat(name.length(), is(6));
+
+        Method lengthMethod = String.class.getMethod("length");
+        assertThat((Integer)lengthMethod.invoke(name), is(6));
+
+        // charAt()
+        assertThat(name.length(0), is('S'));
+
+        Method charAtMethod = String.class.getMethod("charAt", int.class);
+        assertThat((Character)charAtMethod.invoke(name, 0), is('S'));
+    }
+}
+```
+
+#### 프록시 클래스
+- 다이내믹 프록시를 이용한 프록시를 만들어보자.
+- 프록시를 적용할 간단한 타깃 클래스와 인터페이스를 다음과 같이 정의한다.
+
+```java
+// 6-18. Hello 인터페이스
+interface Hello {
+    String sayHello(String name);
+    String sayHi(String name);
+    String sayThankYou(String name);
+}
+```
+
+```java
+// 6-19. 타깃 클래스
