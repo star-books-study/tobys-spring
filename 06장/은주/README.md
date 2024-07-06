@@ -293,9 +293,145 @@ verify(mockUserDao, times(2)).update(any(User.class));
   - 클래스 오브젝트를 이용하면, 클래스 코드에 대한 메타정보를 가져오거나 오브젝트를 조작할 수 있다
  
 #### 다이내믹 프록시 적용
+![alt text](image-5.png)
 - 다이내믹 프록시 : 프록시 팩토리에 의해 런타임시 다이내믹하게 만들어지는 오브젝트
-  - 타깃의 인터페이스와 같은 타입으로 만들어진다
+  - 다이내믹 프록시 오브젝트는 타깃의 인터페이스와 같은 타입으로 만들어진다
   - 클라이언트는 다이내믹 프록시 오브젝트를 **타깃 인터페이스를 통해 사용할 수 있다**
   - **프록시 팩토리에게 인터페이스 정보만 제공해주면 해당 인터페이스를 구현한 클래스의 오브젝트를 자동으로 만들어준다**
-![alt text](image-5.png)
-- 부가 기능은 프록시 오브젝트와 독립적으로 InvocationHandler 를 구현한 오브젝트에 담는다
+- 다이내믹 프록시가 인터페이스 구현 클래스의 오브젝트는 만들어주지만, 프록시로서 필요한 부가기능 제공 코드는 직접 작성해야 한다
+  - 부가 기능은 **프록시 오브젝트와 독립적으로 InvocationHandler 를 구현한 오브젝트에 담는다**
+  - InvocationHandler 인터페이스는 메소드 1개만 가진 간단한 인터페이스이다.
+  ```java
+  public Object invoke(Object proxy, Method method, Object[] args)
+  ```
+  - Method : 리플렉션의 인터페이스
+  - args : 메소드를 호출할 때 전달되는 파라미터
+- 다이내믹 프록시 오브젝트는 **클라이언트의 모든 요청을 리플렉션 정보로 변환해서 InvocationHandler 구현 오브젝트의 invoke() 메소드로 넘기게 된다**
+  - 타깃 인터페이스의 모든 메소드 요청이 하나의 메소드로 집중되기 때문에 중복되는 기능을 효과적으로 제공할 수 있다
+1. Hello 인터페이스를 제공하면서 프록시 팩토리에게 다이내믹 프록시 만들어달라고 요청
+2. 프록시 팩토리는 Hello 인터페이스의 모든 메소드를 구현한 오브젝트 생성
+3. 다이내믹 프록시가 받는 모든 요청을 InvocationHandler 의 invoke() 메소드가 처리한다.
+     - 즉, Hello 인터페이스의 모든 메소드를 invoke() 메소드 하나로 처리할 수 있다
+![alt text](image-6.png)
+- 다이내믹 프록시로부터 메소드 호출 정보를 받아 처리하는 InvocationHandler 를 만들어보자.
+```java
+public class UppercaseHandler implements InvocationHandler {
+  Hello target;
+
+  public UppercaseHandler(Hello target) {
+    this.target = target;
+  }
+  // 다이내믹 프록시로부터 전달받은 요청을 다시 타깃 오브젝트에 위임해야 하므로, 타깃 오브젝트를 주입받아 둔다.
+
+  public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    String ret = (String) method.invoke(target, args); // 타깃으로 위임. 인터페이스의 메소드 호출에 모두 적용된다
+    return ret.toUpperCase(); // 부가기능 제공
+  }
+}
+```
+- **다이내믹 프록시가 클라이언트로부터 받는 모든 요청은 invoke() 메소드로 전달된다.**
+  - 다이내믹 프록시를 통해 요청이 전달되면, 리플렉션 API를 이용해 타깃 오브젝트의 메소드를 호출한다
+- InvocationHandler 를 사용하고 Hello 인터페이스를 구현하는 프록시를 만들어보자
+  - 다이내믹 프록시 생성 ; Proxy 클래스의 newProxyInstance() 스태틱 팩토리 메소드를 이용하면 된다
+  ```java
+  // 생성된 다이내믹 프록시 오브젝트는 Hello 인터페이스를 구현하고 있으므로 Hello 타입으로 캐스팅해도 안전
+  Hello proxiedHello = (Hello) Proxy.newProxyInstance(
+    getClass().getClassLoader(), // 다이나믹 프록시가 정의되는 클래스 로더 지정
+    new Class[] { Hello.class }, //구현할 인터페이스, 하나이상
+    new UppercaseHandler(new HelloTarget())); // 부가 기능과 위임 코드를 담은 InvocationHandler
+  ```
+  - 1번째 파라미터 : 클래스 로더 (다이내믹 프록시가 정의되는 클래스 로더)
+  - 2번째 파라미터 : 다이내믹 프록시가 구현해야 할 인터페이스
+    - 한번에 하나 이상의 인터페이스도 구현 가능하므로 인터페이스 배열 사용
+  - 3번째 파라미터 : 부가기능과 위임 관련 코드를 담고 있는 InvocationHandler 구현 오브젝트 제공
+
+#### 다이내믹 프록시의 확장
+- 다이내믹 프록시를 생성해서 사용하는 코드는 **인터페이스의 메소드가 늘어나도 코드에 변경할 부분이 없다.**
+  - 다이내믹 프록시가 만들어질 때 추가된 메소드가 자동으로 포함될 것이고, 부가기능은 invoke() 메소드에서 처리되기 때문이다
+- InvocationHandler 방식은 **타깃의 종류에 상관없이도 적용이 가능하다**
+  - 어차피 리플렉션의 Method 인터페이스를 이용하여 타깃 메소드를 호출하는 것이므로!
+- InvocationHandler 는 단일 메소드에서 모든 요청을 처리하므로, 어떤 메소드에 어떤 기능을 적용할지 선택하는 과정이 필요할 수 있다
+```java
+public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+  Object ret =method.invoke(target, args);
+  if (ret instanceof String && method.getName().startsWith("say")) {
+    return ((String)ret).toUpperCase(); 
+  }
+  else { 
+    return ret;
+  }
+}
+```
+### 6.3.3. 다이내믹 프록시를 이용한 트랜잭션 부가기능
+- UserServiceTx 는 서비스 인터페이스를 모두 구현해야 하고, 트랜잭션이 필요한 메소드마다 트랜잭션 처리 코드가 중복돼서 나타나는 비효율적인 방법으로 만들어져 있다
+```java
+// AS-IS
+public class UserServiceTx implements UserService { 
+    UserService userService; 
+    PlatformTransactionManager transactionManager;
+
+    public void setTransactionManager(PlatformTransactionManager transactionManager) {
+        this.transactionManager = transactionManager; 
+    }
+
+    public void setUserService(UserService userService) { 
+        this.userService = userService;
+    }
+
+    public void add(User user) { 
+        this.userService.add(user);
+    }
+
+    public void upgradeLevels() {
+        Transactionstatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+
+        try {
+            userService.upgradeLevels();
+            this.transactionManager.commit(status); 
+        } catch (RuntimeException e) {
+            this.transactionManager.rollback(status);
+            throw e; 
+        }
+    }
+}
+```
+#### 트랜잭션 InvocationHandler
+```java
+public class TransactionHandler implements InvocationHandler {
+  private Object target;
+  private PlatformTransactionManager transactionManager;
+  private String pattern;
+
+  // setTarget, setTransactionManager, setPattern
+  public void setXXX(Object target) {
+    ...
+  }
+
+  public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    // 트랜잭션 적용 대상 메소드 선별
+    if(method.getName().startsWith(pattern)) {
+      return invokeInTransaction(method, args); // 경계설정
+    } else {
+      return method.invoke(target, args);
+    }
+  }
+
+  private Object invokeInTransaction(Method method, Object[] args) throws Throwable {
+    TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+    try {
+      // 트랜잭션을 시작하고, 타깃 메소드 호출
+      Object ret = method.invoke(target, args);
+      this.transactionManager.commit(status); 
+      return ret;
+    } catch (InvocationTargetException e) { 
+      this.transactionManager.rollback(status);
+      return e.getTargetException();
+    }
+  }
+}
+```
+- 롤백을 적용하기 위한 예외는 RuntimeException 이 아니라 InvocationTargetException 을 잡도록 해야한다
+  - 리플렉션 메소드인 Method.invoke() 를 이용해 타깃 오브젝트 메소드를 호출할 때는, 타깃 오브젝트에서 발생하는 예외가 InvocationTargetException 으로 한번 포장되어 전달된다.
+  - 일단 InvocationTargetException 으로 받은 후 getTargetException() 메소드로 중첩되어 있는 예외를 가져와야 한다.
+
+### 6.3.4. 다이내믹 프록시를 위한 팩토리 빈
