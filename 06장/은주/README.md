@@ -593,3 +593,31 @@ public class TxProxyFactoryBean implements FactoryBean<Object> {
 ```
 - **팩토리 빈이 만드는 다이내믹 프록시는 구현 인터페이스나 타깃 종류에 제한이 없다**
 - TxProxyFactoryBean은 코드 수정없이 다양한 클래스에 적용가능하며, 트랜잭션 부가기능이 필요한 빈이 추가될 때마다 빈 설정만 추가해주면 된다.
+
+```xml
+<bean id="userService" class="springbook.user.service.TxProxyFactoryBean">
+  <property name="target" ref="userServicelmpl" />
+  <property name="transactionManager" ref="transactionManager" /> 
+  <property name="pattern" value="upgradeLevels" />
+  <property name="serviceInterface" value="springbook.user.service.UserService"/> 
+</bean>
+```
+### 6.3.5. 프록시 팩토리 빈 방식의 장점과 한계
+- 한 번 부가기능을 가진 프록시를 생성하는 팩토리 빈을 만들어두면 타깃의 타입에 상관없이 재사용할 수 있다
+
+#### 프록시 팩토리 빈의 재사용
+- 하나 이상의 TxProxyFactoryBean 을 동시에 빈으로 등록해도 상관없다.
+  - **팩토리 빈이기 때문에 각 빈의 타입은 타깃 인터페이스와 일치** 한다.
+- 예를 들어 coreService 빈에 트랜잭션이 필요해지면, target 프로퍼티를 coreServiceTarget 빈으로 넣고, serviceInterface 에는 프록시가 구현할 인터페이스인 CoreService 를 넣어주면 된다.
+```xml
+<bean id="coreServiceTarget" class="complex.module.CoreServiceImpl">
+  <property name="coreDao" ref="coreDao" />
+</bean>
+
+<bean id="coreService" class="springbook.user.service.TxProxyFactoryBean">
+  <property name="target" ref="coreServiceTarget" />
+  <property name="transactionManager" ref="transactionManager" /> 
+  <property name="pattern" value="upgradeLevels" />
+  <property name="serviceInterface" value="complex.module.CoreService"/> 
+</bean>
+```
