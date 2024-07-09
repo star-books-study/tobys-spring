@@ -621,3 +621,10 @@ public class TxProxyFactoryBean implements FactoryBean<Object> {
   <property name="serviceInterface" value="complex.module.CoreService"/> 
 </bean>
 ```
+- 프록시 팩토리 빈을 이용하면 프록시 기법을 아주 빠르고 효과적으로 적용 가능하다.
+
+#### 프록시 팩토리 빈 방식의 장점
+- 데코레이터 패턴이 적용된 프록시의 2가지 문제점
+  - 프록시를 적용할 대상이 구현하고 있는 인터페이스를 구현하는 프록시 클래스를 일일이 만들어야 한다.
+  - 부가적인 기능이 여러 메소드에 반복적으로 나타나 코드 중복이 발생한다.
+- 다이내믹 프록시 **하나의 핸들러 메소드를 구현하는 것만으로도 수많은 메소드에 부가기능 부여할 수 있어 부가기능 코드 중복 문제가 사라진다**
