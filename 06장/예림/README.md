@@ -1099,3 +1099,4 @@ public class UserServiceTest {
 - 타깃 오브젝트에 맞는 프로퍼티 정보를 설정해서 빈으로 등록해주기만 하면 코드 수정 없이 다양한 클래스에 팩토리 빈 적용 가능
 ``xml
 // 6-38. 트랜잭션 서비스 빈 설정
+<bean id="coreService"
