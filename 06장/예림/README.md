@@ -1095,8 +1095,25 @@ public class UserServiceTest {
 
 ### 6.3.5 프록시 팩토리 빈 방식의 장점과 한계
 - 한 번 팩토리 빈을 만들어두면 타깃의 타입과 상관없이 재사용 가능
+
 #### 프록시 팩토리 빈의 재사용
 - 타깃 오브젝트에 맞는 프로퍼티 정보를 설정해서 빈으로 등록해주기만 하면 코드 수정 없이 다양한 클래스에 팩토리 빈 적용 가능
-``xml
+  - 하나 이상의 팩토리 빈을 동시에 빈으로 등록해도 상관 없음
+- UserService 외에 트랜잭션 경계설정 기능을 부여해줄 필요가 있는 클래스가 있다고 하자. 인터페이스는 CoreService라고 하고, **인터페이스에 정의된 수십 여개의 메서드에 트랜잭션을 모두 적용**해야 한다.
+```xml
 // 6-38. 트랜잭션 서비스 빈 설정
-<bean id="coreService"
+<bean id="coreService" class="complex.module.CoreServiceImpl">
+    <property name="coreDao" ref="coreDao" />
+</bean>
+```
+- coreService 빈에 트랜잭션 기능이 필요해지면 TxProxyFactoryBean을 그대로 적용해주면 된다.
+- 일단 기존의 CoreService라는 이름으로 등록했던 빈의 아이디를 다음과 같이 변경한다.
+```xml
+// 6-39. 아이디를 변경한 CoreService 빈
+<bean id="coreServiceTarget" class="complex.module.CoreServiceImpl">
+    <property name="coreDao" ref="coreDao" />
+</bean>
+```
+- 이제 coreService 빈은 TxProxyFactoryBean을 이용해 다음과 같이 등록해준다.
+```xml
+// 6-30. CoreService에 대한 트랜잭션 프록시 팩토리 빈
