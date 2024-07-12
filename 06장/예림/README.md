@@ -1117,3 +1117,9 @@ public class UserServiceTest {
 - 이제 coreService 빈은 TxProxyFactoryBean을 이용해 다음과 같이 등록해준다.
 ```xml
 // 6-30. CoreService에 대한 트랜잭션 프록시 팩토리 빈
+<bean id="coreService" class="complex.module.TxProxyFactoryBean">
+    <property name="target" ref="coreServiceTarget" />
+    ...
+    <property name="serviceInterface" value="complex.module.CoreService" />
+</bean>
+```
