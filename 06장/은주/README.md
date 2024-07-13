@@ -640,5 +640,66 @@ public class TxProxyFactoryBean implements FactoryBean<Object> {
 
 ## 6.4. 스프링의 프록시 팩토리 빈
 ### 6.4.1. ProxyFactoryBean
+- 스프링은 **프록시 오브젝트를 생성해주는 기술을 추상화한 팩토리 빈을 제공**해준다.
+  - ProxyFactoryBean : 프록시를 생성해서 빈 오브젝트로 등록하게 해주는 팩토리 빈
+  - 기존에 만든 TxProxyFactoryBean 과 달리 **순수하게 프록시를 생성하는 작업만을 담당하고, 프록시를 통해 제공해줄 부가기능은 별도의 빈에 둘 수 있다**
+- ProxyFactoryBean 이 생성하는 프록시에서 사용할 부가기능은 MethodInterceptor 인터페이스를 구현해서 만든다.
+  - MethodInterceptor 는 InvocationHandler 와 비슷하지만 한 가지 다른 점이 존재한다.
+  - InvocationHandler 의 invoke() 메소드는 타깃 오브젝트에 대한 정보를 제공하지 않으며, 타깃은 InvocationHandler 를 구현한 클래스가 직접 알고 있어야 한다.
+  ```java
+  public class TransactionHandler implements InvocationHandler {
+    private Object target;
+    ...
+  ```
+  - 반면 **MethodInterceptor 의 invoke() 메소드는 ProxyFactoryBean 으로부터 타깃 오브젝트에 대한 정보까지 함께 제공받는다.**
+    - 그래서 MethodInterceptor 는 **타깃 오브젝트에 상관없이 독립적으로 만들어질 수 있으며, 타깃이 다른 여러 프록시에서 함께 사용 가능하며 싱글톤 빈으로 등록 가능하다.**
 
-### 6.4.2. 
+```java
+public class DynamicProxyTest {
+    @Test
+    public void simpleProxy(){
+        //JDK에서 제공하는 다이내믹 프록시 만드는 방법
+        Hello proxiedHello = (Hello) Proxy.newProxyInstance(
+                getClass().getClassLoader(),
+                new Class[] {Hello.class}, //프록시가 구현할 인터페이스
+                new UppercaseHandler(new HelloTarget()) //부가기능
+        );
+    }
+
+    @Test
+    public void proxyFactoryBean(){
+        ProxyFactoryBean pfBean = new ProxyFactoryBean();
+        pfBean.setTarget(new HelloTarget()); // 타깃 설정
+        pfBean.addAdvice(new UppercaseAdvice()); // 부가 기능을 담은 어드바이스 추가. 여러 개도 가능
+
+        // FactoryBean이므로 getObject()로 생성된 프록시를 가져옴
+        Hello proxiedHello = (Hello) pfBean.getObject();
+
+        assertThat(proxiedHello.sayHello("Toby"), is("HELLO TOBY"));
+        assertThat(proxiedHello.sayHi("Toby"), is("HI TOBY"));
+        assertThat(proxiedHello.sayThankYou("Toby"), is("THANK YOU TOBY"));
+    }
+
+    private static class UppercaseAdvice implements MethodInterceptor {
+        @Override
+        public Object invoke(MethodInvocation invocation) throws Throwable {
+            // InvocationHandler와 달리 target이 필요 없음. MethodInvocation 은 메소드 정보와 함께 타깃 오브젝트를 알고 있기 때문
+            String ret = (String)invocation.proceed();
+            return ret.toUpperCase();
+        }
+    }
+}
+```
+
+#### 어드바이스: 타깃이 필요 없는 순수한 부가 기능
+- MethodInvocation 오브젝트는 메소드 정보와 함께 타깃 오브젝트를 담고 있어서, 타깃 오브젝트의 메소드를 실행할 수 있다.
+- 따라서 MethodInterceptor 는 **부가 기능을 제공하는 데만 집중할 수 있다**
+- MethodInvocation 는 일종의 콜백 오브젝트로, proceed() 메소드 실행 시 타깃 오브젝트의 메소드를 내부적으로 실행해준다.
+  - ProxyFactoryBean 는 작은 단위의 템플릿/콜백 구조를 응용하여 적용함으로써 **템플릿 역할을 하는 MethodInvocation을 싱글톤으로 두고 공유할 수 있다**
+- MethodInterceptor 처럼 **타깃 오브젝트에 적용하는 부가기능을 담은 오브젝트**를 스프링에서는 `어드바이스` 라고 부른다
+- 원래 프록시를 직접 만들 때나 JDK 다이내믹 프록시를 만들때는 반드시 인터페이스 정보를 제공해줘야 했다. 그래야만 다이내믹 프록시 오브젝트 타입을 결정할 수 있었기 때문!
+- 하지만 ProxyFactoryBean 에 있는 **인터페이스 자동검출 기능을 사용해 타깃 오브젝트가 구현하는 인터페이스 정보를 알아내고, 알아낸 인터페이스를 모두 구현하는 프록시**를 만들어준다.
+- ProxyFactoryBean는 기본적으로 JDK 가 제공하는 다이내믹 프록시를 만들어준다. 
+  - 경우에 따라서는 CGLib 를 활용해 프록시를 만들기도 한다.
+
+#### 포인트컷: 부가기능 적용 대상 메소드 선정 방법
