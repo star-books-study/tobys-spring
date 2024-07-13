@@ -1119,7 +1119,23 @@ public class UserServiceTest {
 // 6-30. CoreService에 대한 트랜잭션 프록시 팩토리 빈
 <bean id="coreService" class="complex.module.TxProxyFactoryBean">
     <property name="target" ref="coreServiceTarget" />
-    ...
+    <property name="transactionManger" ref="transactionManager" />
+    <property name="pattern" value="" />
     <property name="serviceInterface" value="complex.module.CoreService" />
 </bean>
 ```
+- CoreService 인터페이스에 정의된 모든 메서드에 트랜잭션 기능을 적용하려면 pattern 값을 빈 문자열로 설정해주면 된다.
+
+- 다음 그림은 설정을 변경하기 전과 후의 오브젝트 관계를 나타낸다. 간단히 프록시 팩토리 빈의 설정을 추가해주고 나서는 CoreServiceImpl의 모든 메서드에 트랜잭션 기능이 적용됐다.
+  
+  <img width="561" alt="스크린샷 2024-07-13 오후 2 12 05" src="https://github.com/user-attachments/assets/928d90cc-6309-48dd-9c9a-671cb2858762">
+
+#### 프록시 팩토리 빈 방식의 장점
+- 다이내믹 프록시 장점
+    - 타깃 인터페이스를 구현하는 클래스를 일일히 만드는 번거로움 제거
+    - 부가기능 중복 문제 해결 : 하나의 헨들러 메서드를 구현하는 것만으로도 수많은 메서드에 부가기능을 부여할 수 있으므로
+- 프록시에 팩토리 빈을 이용한 DI까지 더해주면 번거로운 다이내믹 프록시 생성 코드도 제거 가능
+
+#### 프록시 팩토리 빈의 한계
+- 
+
