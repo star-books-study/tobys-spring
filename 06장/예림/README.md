@@ -1313,24 +1313,6 @@ public class TransactionAdvice implements MethodInterceptor {
 - **interceptorNames** : 어드바이스와 어드바이저를 동시에 설정해줄 수 있는 프로퍼티. 리스트에 어드바이스나 어드바이저의 빈 아이디를 값으로 넣어주면 된다. 기존의 ref 애트리뷰트를 사용하는 DI와는 방식이 다름에 주의해야 한다.
 - 한 개 이상의 `<value>` 태그를 넣을 수 있다.
 
-#### 테스트
-```java
-// 6-48. ProxyFactoryBean을 이용한 트랜잭션 테스트
-@Test
-public void proxyFactoryBean() {
-    ProxyFactoryBean pfBean = new ProxyFactoryBean();
-    pfBean.setTarget(new HelloTarget());
-
-    NameMatchMethodPointcut pointcut = new NameMatchMethodPointcut();
-    pointcut.setMappedName("sayH*");
-    pfBean.addAdvisor(new DefaultPointcutAdvisor(pointcut, new UpperCaseAdvice()));
-
-    Hello proxiedHello = (Hello) pfBean.getObject();
-    assertThat(proxiedHello.sayHi("gunju"), is("HI GUNJU"));
-    assertThat(proxiedHello.sayThankYou("gunju"), is("Thank you gunju"));
-}
-```
-
 #### 어드바이스와 포인트컷의 재사용
 - ProxyFactoryBean은 스프링의 DI와 템플릿/콜백 패턴, 서비스 추상화 등의 기법이 모두 적용된 것이다.
 - 그 덕분에 독립적이며 여러 프록시가 공유할 수 있는 어드바이스와 포인트컷으로 확장 기능을 분리할 수 있었다.
