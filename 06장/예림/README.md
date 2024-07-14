@@ -1137,5 +1137,205 @@ public class UserServiceTest {
 - 프록시에 팩토리 빈을 이용한 DI까지 더해주면 번거로운 다이내믹 프록시 생성 코드도 제거 가능
 
 #### 프록시 팩토리 빈의 한계
-- 
+- 프록시를 통해 타깃에 부가기능을 제공하는 것은 메소드 단위로 일어나는 일이다.
+- 하나의 클래스 안에 존재하는 여러 개의 메소드에 부가기능을 한 번에 제공하는 건 어렵지 않게 가능했다.
+- 하지만 한 번에 여러 개의 클래스에 공통적인 부가기능을 제공하는 일은 지금까지 살펴본 방법으로는 불가능하다.
+- 하나의 타깃에 여러 개의 부가기능을 적용하려고 할 때도 문제다. 프록시 팩토리 빈 설정이 부가기능의 개수만큼 따라 붙어야 한다.
 
+## 6.4 스프링의 프록시 팩토리 빈
+
+### 6.4.1 ProxyFactoryBean
+- 자바에는 JDK에서 제공하는 다이내믹 프록시 외에도 편리하게 프록시를 만들 수 있도록 지원해주는 다양한 기술이 존재한다.
+- 따라서 스프링은 **일관된 방법으로 프록시를 만들 수 있게 도와주는 추상 레이어**를 제공한다.
+- 생성된 프록시는 스프링의 빈으로 등록돼야 한다.
+- 스프링은 프록시 오브젝트를 생성해주는 기술을 추상화한 팩토리 빈을 제공해준다.
+
+- 스프링의 `ProxyFactoryBean`은 **프록시를 생성해서 빈 오브젝트로 등록하게 해주는 팩토리 빈**이다.
+- `ProxyFactoryBean`은 순수하게 프록시를 생성하는 작업만을 담당하고 프록시를 통해 제공해줄 부가기능은 별도의 빈에 둘 수 있다.
+- `ProxyFactoryBean`이 생성하는 프록시에서 사용할 부가기능은 `MethodInterceptor` 인터페이스를 구현해서 만든다.
+- MethodInterceptor는 InvocationHandler와 비슷하지만 한 가지 다른 점이 있다. InvocationHandler의 invoke() 메소드는 타깃 오브젝트에 대한 정보를 제공하지 않는다.
+- 따라서 타깃은 **InvocationHandler를 구현한 클래스가 직접 알고 있어야 한다.**
+- 반면에 MethodInterceptor의 `invoke()` 메소드는 ProxyFactoryBean으로부터 타깃 오브젝트에 대한 정보까지도 함께 제공받는다.
+- 그 차이 덕분에 MethodInterceptor는 **타깃 오브젝트에 상관없이 독립적으로 만들어질 수 있다.** 따라서 MethodInterceptor 오브젝트는 타깃이 다른 여러 프록시에서 함께 사용할 수 있고, 싱글톤 빈으로 등록 가능하다.
+
+```java
+// 6-41. 스프링 ProxyFactoryBean을 이용한 다이내믹 프록시 테스트
+public class DynamicProxyTest {
+    @Test
+    public void simpleProxy() {
+        Hello proxiedHello = (Hello)Proxy.newProxyInstance(
+            getClass().getClassLoader(),
+            new Class[] { Hello.class },
+            new UppercaseHandler(new HelloTarget()));
+            ...
+    }
+
+    @Test
+    public void proxyFactoryBean() {
+        ProxyFactoryBean pfBean = new ProxyFactoryBean();
+        pfBean.setTarget(new HelloTarget()); // 타깃 설정
+        pfBean.addAdvice(new UppdercaseAdvice()); // 부가 기능을 담은 어드바이스를 추가한다. 여러 개를 추가할 수도 있다.
+
+        Hello proxiedHello = (Hello) pfBean.getObject(); // FactoryBean이므로 getObject()로 생성된 프록시를 가져온다.
+
+        assertThat(ProxiedHello.sayHello("Toby", is("HELLO TOBY"));
+        ....
+    }
+
+    static class UppercaseAdvise implements MethodInterceptor {
+        public Object invoke(MethodInterceptor invocation) throws Throwable {
+            String ret = (String)invocation.proceed(); // 리플렉션의 Method와 달리 메서드 실행 시 타깃 오브젝트를 전달할 필요가 없다. Methodinvocation은 메서드 정보와 함께 타깃 오브젝트를 알고 있기 때문이다.
+            return ret.toUpperCase(); // 부가 기능 적용
+    }
+}
+```
+#### 어드바이스 : 타깃이 필요 없는 순수한 부가기능
+- MethodInvocation은 일종의 콜백 오브젝트로, `proceed()` 메소드를 실행하면 타깃 오브젝트의 메소드를 내부적으로 실행해주는 기능이 있다.
+- ProxyFactoryBean은 작은 단위의 템플릿/콜백 구조를 응용해서 적용했기 때문에 템플릿 역할을 하는 MethodInvocation을 싱글톤으로 두고 공유할 수 있다.
+- MethodInterceptor처럼 **타깃 오브젝트에 적용하는 부가기능을 담은 오브젝트**를 스프링에서는 **어드바이스(advice)**라고 부른다.
+- ProxyFactoryBean은 기본적으로 JDK가 제공하는 다이내믹 프록시를 만들어준다.
+- 경우에 따라서는 CGLib이라고 하는 오픈소스 바이트코드 생성 프레임워크를 이용해 프록시를 만들기도 한다.
+- 어드바이스는 타깃 오브젝트에 종속되지 않는 순수한 부가기능을 담은 오브젝트라는 사실을 잘 기억해두자.
+
+#### 포인트컷 : 부가기능 적용 대상 메서드 선정 방법
+- MethodInterceptor 오브젝트는 여러 프록시가 공유해서 사용할 수 있다.
+- 그러기 위해서 MethodInterceptor 오브젝트는 타깃 정보를 갖고 있지 않도록 만들었다.
+- 그 덕분에 MethodInterceptor를 스프링의 싱글톤 빈으로 등록할 수 있었다.
+- 그런데 여기에다 트랜잭션 적용 대상 메소드 이름 패턴을 넣어주는 것은 곤란하다. 트랜잭션 적용 메소드 패턴은 프록시마다 다를 수 있기 때문에 여러 프록시가 공유하는 MethodInterceptor에 특정 프록시에만 적용되는 패턴을 넣으면 문제가 된다.
+
+<img width="535" alt="스크린샷 2024-07-14 오후 11 29 36" src="https://github.com/user-attachments/assets/100f429a-3c04-42cb-8c80-2137896195e4">
+
+<img width="545" alt="스크린샷 2024-07-14 오후 11 29 49" src="https://github.com/user-attachments/assets/b8b44f94-9d30-450d-99a1-01c8bf287ec8">
+
+- InvocationHandler는 타깃과 메소드 선정 알고리즘 코드에 의존하고 있지만, 스프링의 ProxyFactoryBean 방식은 두 가지 확장 기능인 부가기능(Advice)과 메소드 선정 알고리즘(Pointcut)을 활용하는 유연한 구조를 제공한다.
+- 스프링은 부가기능을 제공하는 오브젝트를 **어드바이스**라고 부르고, 메소드 선정 알고리즘을 담은 오브젝트를 **포인트컷**이라고 부른다.
+- 어드바이스와 포인트컷은 모두 프록시에 DI로 주입돼서 사용된다.
+- 두 가지 모두 여러 프록시에서 공유가 가능하도록 만들어지기 때문에 스프링의 싱글톤 빈으로 등록이 가능하다.
+- 프록시는 클라이언트로부터 요청을 받으면 먼저 포인트컷에게 부가기능을 부여할 메소드인지를 확인해달라고 요청한다.
+- 포인트컷은 Pointcut 인터페이스를 구현해서 만들면 된다.
+- 프록시는 포인트컷으로부터 부가기능을 적용할 대상 메소드인지 확인받으면, MethodInterceptor 타입의 어드바이스를 호출한다.
+- 어드바이스는 JDK의 다이내믹 프록시의 InvocationHandler와 달리 직접 타깃을 호출하지 않는다.
+- 어드바이스가 일종의 템플릿이 되고 타깃을 호출하는 기능을 갖고 있는 MethodInvocation 오브젝트가 콜백이 되는 것이다.
+- 템플릿은 한 번 만들면 재사용이 가능하고 여러 빈이 공유해서 사용할 수 있듯이, 어드바이스도 독립적인 싱글톤 빈으로 등록하고 DI를 주입해서 여러 프록시가 사용하도록 만들 수 있다.
+- 프록시로부터 어드바이스와 포인트컷을 독립시키고 DI를 사용하게 한 것은 전형적인 전략 패턴 구조다.
+
+
+```java
+// 6-42. 포인트컷까지 적용한 ProxyFactoryBean
+@Test
+public void pointcutAdvisor() {
+    ProxyFactoryBean pfBean = new ProxyFactoryBean();
+    pfBean.setTarget(new HelloTarget());
+    
+    // 메소드 이름을 비교해서 대상을 선정하는 알고리즘을 제공하는 포인트컷 생성
+    NameMatchMethodPointcut pointcut = new NameMatchMethodPointcut();
+    // 이름 비교조건 설정. sayH로 시작하는 모든 메소드를 선택하게 한다.
+    pointcut.setMappedName("syaH*");
+    
+    // 포인트컷과 어드바이스를 advisor로 묶어서 한 번에 추가
+    pfBean.addAdvisor(new DefaultPointcutAdvisor(pointcut, new UppercaseAdvice()));
+    
+    Hello proxiedHello = (Hello) pfBean.getObject();
+    
+    assertThat(proxiedHello.sayHello("Toby"), is("HELLO TOBY"));
+    assertThat(proxiedHello.sayHi("Toby"), is("HI TOBY"));
+	assertThat(proxiedHello.sayThankYou("Toby"), is("Thank You Toby"));
+}
+```
+- ProxyFactoryBean에는 여러 개의 어드바이스와 포인트컷이 추가될 수 있다.
+    - 포인트컷과 어드바이스를 따로 등록하면 어떤 어드바이스(부가 기능)에 대해 어떤 포인트컷(메소드 선정)을 적용할지 애매해지기 때문이다.
+- 그래서 이 둘을 Advisor 타입의 오브젝트에 담아서 조합을 만들어 등록하는 것이다. 여러 개의 어드바이스가 등록되더라도 각각 다른 포인트컷과 조합될 수 있기 때문에 각기 다른 메소드 선정 방식을 적용할 수 있다.
+- 이렇게 **어드바이스와 포인트 컷을 묶은 오브젝트를 인터페이스** 이름을 따서 **어드바이저라**고 부른다.
+  ```
+  어드바이저 = 포인트컷(메소드 선정 알고리즘) + 어드바이스(부가기능)
+  ```
+
+### 6.4.2 ProxyFactoryBean 적용
+
+#### TransactionAdvice
+
+```java
+// 6-43. 트랜잭션 어드바이스
+public class TransactionAdvice implements MethodInterceptor {
+  PlatformTransactionManager transactionManager;
+
+  @Override
+  public Object invoke(MethodInvocation invocation) throws Throwable { // 타깃을 호출하는 기능을 가진 콜백 오브젝트를 프록시로부터 받는다. 덕분에 어드바이스는 특정 타깃에 의존하지 않고 재사용이 가능하다.
+      TransactionStatus status = this.transactionManager.getTransaction(
+                                                                          new DefaultTransactionDefinition());
+      try {
+          Object ret = invocation.proceed(); // 콜백을 호출해서 타깃의 메서드를 실행한다. 타깃 메서드 호출 전후로 필요한 부가 기능을 넣을 수 있다. 경우에 따라서 타깃이 아예 호출되지 않게 하거나 재시도를 위한 반복적인 호출도 가능하다. 
+          this.transactionManager.commit(status);
+          return ret;
+
+      } catch (RuntimeException e) { // JDK 다이내믹 프록시가 제공하는 Method와는 달리 스프링의 Methodinvocation을 통한 타깃 호출은 예외가 포장되지 않고 타깃에서 보낸 그대로 전달된다.
+          this.transactionManager.rollback(status);
+          throw e;
+      }
+  }
+}
+```
+
+#### 스프링 XML 설정파일
+
+```java
+// 6-44. 트랜잭션 어드바이스 빈 설정
+<bean id="transactionAdvice" class="user.service.TransactionAdvice">
+  <property name="transactionManager" ref="transactionManager" />
+</bean>
+```
+```java
+// 6-45. 포인트컷 빈 설정
+<bean id="transactionPointCut" class="org.springframework.aop.support.NameMatchMethodPointcut">
+  <property name="mappedName" value="upgrade*" />
+</bean>
+```
+
+```java
+// 6-46. 어드바이저 빈 설정
+<bean id="transactionAdvisor" class="org.springframework.aop.support.DefaultPointcutAdvisor">
+  <property name="advice" ref="transactionAdvice" />
+  <property name="pointcut" ref="transactionPointCut" />
+</bean>
+```
+
+```java
+// 6-47. ProxyFactoryBean 설정
+<bean id="userService" class="org.springframework.aop.framework.ProxyFactoryBean">
+    <property name="target" ref="userServiceImpl" />
+    <property name="interceptorNames">
+        <list>
+            <value>transactionAdvisor</value>
+        </list>
+    </property>
+</bean>
+```
+- **interceptorNames** : 어드바이스와 어드바이저를 동시에 설정해줄 수 있는 프로퍼티. 리스트에 어드바이스나 어드바이저의 빈 아이디를 값으로 넣어주면 된다. 기존의 ref 애트리뷰트를 사용하는 DI와는 방식이 다름에 주의해야 한다.
+- 한 개 이상의 `<value>` 태그를 넣을 수 있다.
+
+#### 테스트
+```java
+// 6-48. ProxyFactoryBean을 이용한 트랜잭션 테스트
+@Test
+public void proxyFactoryBean() {
+    ProxyFactoryBean pfBean = new ProxyFactoryBean();
+    pfBean.setTarget(new HelloTarget());
+
+    NameMatchMethodPointcut pointcut = new NameMatchMethodPointcut();
+    pointcut.setMappedName("sayH*");
+    pfBean.addAdvisor(new DefaultPointcutAdvisor(pointcut, new UpperCaseAdvice()));
+
+    Hello proxiedHello = (Hello) pfBean.getObject();
+    assertThat(proxiedHello.sayHi("gunju"), is("HI GUNJU"));
+    assertThat(proxiedHello.sayThankYou("gunju"), is("Thank you gunju"));
+}
+```
+
+#### 어드바이스와 포인트컷의 재사용
+- ProxyFactoryBean은 스프링의 DI와 템플릿/콜백 패턴, 서비스 추상화 등의 기법이 모두 적용된 것이다.
+- 그 덕분에 독립적이며 여러 프록시가 공유할 수 있는 어드바이스와 포인트컷으로 확장 기능을 분리할 수 있었다.
+- 이제 UserService 외에 새로운 비즈니스 로직을 담은 서비스 클래스가 만들어져도 이미 만들어둔 TransactionAdvice를 그대로 재사용할 수 있다.
+- 메소드의 선정을 위한 포인트컷이 필요하면 이름 패턴만 지정해서 ProxyFactoryBean에 등록해주면 된다.
+- 트랜잭션을 적용할 메소드의 이름을 일관된 명명 규칙을 정해두면 하나의 포인트컷으로도 충분하다.
+
+<img width="540" alt="image" src="https://github.com/user-attachments/assets/2a68d743-7135-40b8-9388-b5d91e86f657">
