@@ -1278,20 +1278,20 @@ public class TransactionAdvice implements MethodInterceptor {
 
 #### 스프링 XML 설정파일
 
-```java
+```xml
 // 6-44. 트랜잭션 어드바이스 빈 설정
 <bean id="transactionAdvice" class="user.service.TransactionAdvice">
   <property name="transactionManager" ref="transactionManager" />
 </bean>
 ```
-```java
+```xml
 // 6-45. 포인트컷 빈 설정
 <bean id="transactionPointCut" class="org.springframework.aop.support.NameMatchMethodPointcut">
   <property name="mappedName" value="upgrade*" />
 </bean>
 ```
 
-```java
+```xml
 // 6-46. 어드바이저 빈 설정
 <bean id="transactionAdvisor" class="org.springframework.aop.support.DefaultPointcutAdvisor">
   <property name="advice" ref="transactionAdvice" />
@@ -1299,7 +1299,7 @@ public class TransactionAdvice implements MethodInterceptor {
 </bean>
 ```
 
-```java
+```xml
 // 6-47. ProxyFactoryBean 설정
 <bean id="userService" class="org.springframework.aop.framework.ProxyFactoryBean">
     <property name="target" ref="userServiceImpl" />
@@ -1341,3 +1341,64 @@ public class TransactionAdvice implements MethodInterceptor {
   - 어드바이저를 이용한 자동 프록시 생성기
 - 빈 후처리기를 스프링에 적용하는 방법은 **빈 후처리기 자체를 빈으로 등록**하는 것이다.
 - 스프링은 빈 후처리기가 빈으로 등록되어 있으면 빈 오브젝트가 생성될 때마다 빈 후처리기에 보내서 후처리 작업을 요청한다.
+- 이를 잘 이용하면 스프링이 생성하는 빈 오브젝트의 일부를 프록시로 포장하고, 프록시를 빈으로 대신 등록할 수도 있다. 바로 이것이 자동 프록시 생성 빈 후처리기이다.
+- 다음 그림은 빈 후처리기를 이용한 자동 프록시 생성 방법을 설명한다.
+  
+	<img width="546" alt="스크린샷 2024-07-16 오후 5 05 40" src="https://github.com/user-attachments/assets/ea8e903f-169d-4ddc-a0b6-79426903dd6d">
+
+	- `DefaultAdvisorAutoProxyCreator` 빈 후처리기가 등록되어 있으면 스프링은 빈 오브젝트를 만들 때마다 후처리기에게 빈을 보낸다.
+	 - `DefaultAdvisorAutoProxyCreator`으로 등록된 모든 어드바이저 내의 포인트 컷을 이용해 전달받은 빈이 프록시 적용 대상인지 확인한다.
+	 - 적용 대상이면 그 때는 내장된 프록시 생성기에게 현재 빈에 대한 프록시를 만들게 하고, 만들어진 프록시에 어드바이저를 연결해준다.
+	 - 빈 후처리기는 프록시가 생성되면 원래 컨테이너가 전달해준 빈 오브젝트 대신 프록시 오브젝트를 컨테이너에게 돌려준다.
+
+- 적용할 빈을 선정하는 로직이 추가된 포인트컷이 담긴 어드바이저를 등록하고 빈 후처리기를 사용하면 일일히 `ProxyFactoryBean`을 등록하지 않아도 타깃 오브젝트에 자동으로 프록시가 적용되게 할 수 있다.
+
+#### 확장된 포인트컷
+- 지금까지 포인트컷이란, 타깃 오브젝트의 메서드 중 어떤 메서드에 부가기능을 적용할지 선정해주는 역할을 한다고 했다.
+- 그런데 여기서는 갑자기 포인트컷이 등록된 빈 중에서 어떤 빈에 프록시를 적용할지를 선택한다는 식으로 설명하고 있다.
+- 사실 포인트컷은 두 가지 기능을 모두 갖고 있다.
+  - 포인트컷은 클래스 필터와 메서드 매처 두 가지를 돌려주는 메서드를 갖고 있다.
+```java
+public interface Pointcut {
+	ClassFilter getClassFilter(); // 프록시를 적용할 클래스인지 확인해준다.
+	MethodMatcher getMethodMatcher(); // 어드바이스를 적용할 메서드인지 확인
+}
+```
+
+- 만약 Pointcut 선정 기능을 모두 적용한다면 먼저 프록시를 적용할 클래스인지 판단하고 나서, 적용 대상 클래스인 경우에는 어드바이스를 적용할 메서드인지 확인하는 식으로 동작한다.
+- `ProxyFactoryBean`에서는 굳이 클래스 레벨의 필터는 필요 없었지만, 모든 빈에 대해 프록시 자동 적용 대상을 선별해야 하는 빈 후처리기인 `DefaultAdvisorAutoProxyCreator`는 클래스와 메서드 선정 알고리즘을 모두 갖고 있는 포인트컷이 필요하다.
+- 정확히는 그런 포인트컷과 어드바이스가 결합되어 있는 어드바이저가 등록되어 있어야 한다.
+
+#### 포인트컷 테스트
+- 앞에서 사용한 NameMatchMethodPointcut은 클래스 필터 기능이 아예 없다. (사실 있긴 있지만 모든 클래스에 대해 무조건 OK 해버리는, 있으나 마나 한 필터)
+- 이번엔 이 클래스를 확장해서 **클래스도 고를 수 있도록** 하겠다.
+- 그리고 프록시 적용 후보 클래스를 여러 개 만들어두고 이 포인트컷을 적용한 ProxyFactoryBean으로 프록시를 만들도록 해서 과연 어드바이스가 적용되는지 아닌지를 확인하겠다.
+
+```java
+// 6-50. 확장 포인트컷 테스트
+@Test
+public void classNamePointcutAdvisor() {
+	// 포인트컷 준비
+	NameMatchMethodPoincut classMethodPointcut = new NameMatchMethodPointcut() {
+		public ClassFilter getClassFilter() { // 익명 내부 클래스 방식으로 클래스를 정의한다.
+			return new ClassFilter() {
+				public boolean matches(Class<?> clazz) {
+					return clazz.getSimpleName().startsWith("HelloT"); // 클래스 이름이 HelloT로 시작하는 것만 선정한다.
+				}
+			};
+		}
+	}
+	classMethodPointcut.setMappedName("sayH*"); // sayH로 시작하는 메서드 이름을 가진 메서드만 선정한다.
+
+	// 테스트
+	checkAdviced(new HelloTarget(), classMethodPointcut, true); // HelloTarget은 적용 클래스다.
+
+	class HelloWorld extends HelloTarget {};
+	checkAdviced(new HelloWorld(), classMethodPointcut, false); // HelloWorld는 적용 클래스가 아니다.
+
+	class HelloToby extends HelloTarget {};
+	checkAdviced(new HelloToby(), classMethodPointcut, true); // HelloToby는 적용 클래스다.
+}
+
+
+		
