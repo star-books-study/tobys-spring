@@ -877,4 +877,12 @@ public class TransactionAdvice implements MethodInterceptor { // 스프링의 �
 - 지금까지 포인트컷이란 타깃 오브젝트 메소드 중에서 어떤 메소드에 부가기능을 적용할지 선정해주는 역할을 한다고 했다
 - 그런데 여기서는 갑자기 포인트컷이 등록된 빈 중에서 어떤 빈에 프록시를 적용할지 선택한다고 설명하고 있네?
   - 포인트컷은 2가지 기능을 모두 갖고 있다.
-
+```java
+public interface PointCut {
+  ClassFilter getClassFilter(); // 프록시를 적용할 클래스인지 확인
+  MethodMatcher getMethodMatcher(); // 어드바이스를 적용할 메소드인지 확인  
+}
+```
+- 지금까지는 포인트컷이 제공하는 2가지 기능 중 MethodMatcher 라는 메소드를 선별하는 기능만 사용한 것이다.
+  - 메소드만 선별한다 == **클래스 필터는 모든 클래스를 다 받아주도록 만들어져 있다**는 뜻
+- 만약 Pointcut 선정 기능 2가지를 모두 적용한다면 **먼저 프록시를 적용할 클래스인지 판단하고, 적용 대상 클래스인 경우 어드바이스를 적용할 메소드인지 확인하는 식으로 동작** 한다
