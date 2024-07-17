@@ -1401,4 +1401,83 @@ public void classNamePointcutAdvisor() {
 }
 
 
-		
+private void checkAdviced(Object target, Pointcut pointcut, boolean adviced) { // advised : 적용 대상인가?
+	ProxyFactoryBean pfBean = new ProxyFactoryBean();
+	pfBean.setType(target);
+	pfBean.addAdvisor(new DefaultPointcutAdvisor(pointcut, new UppercaseAdvice()));
+	Hello proxiedHello = (Hello) pfBean.getObject();
+
+	if(adviced) {
+		// 메서드 선정 방식을 통해 어드바이스 적용
+		// ==============================
+		assertTrue(proxiedHello.sayHello("Toby"), is("HELLO TOBY"));
+		asserTrue(proxiedHello.sayHi("Toby"), is("HI TOBY"));
+		// ==============================
+		asserTrue(proxiedHello.sayThankYou("Toby"), is("Thank You Toby"));
+	}
+	else {
+		// 어드바이스 적용 대상 후보에서 아예 탈락
+		// ==============================
+		assertTrue(proxiedHello.sayHello("Toby"), is("Hello Toby"));
+		asserTrue(proxiedHello.sayHi("Toby"), is("Hi Toby"));
+		asserTrue(proxiedHello.sayThankYou("Toby"), is("Thank You Toby"));
+		// ==============================
+	}
+}
+```
+
+- 포인트컷이 클래스 필터까지 동작해서 클래스를 걸러버리면 아무리 프록시를 적용했다고 해도 부가기능은 전혀 제공되지 안흔ㄴ다는 점에 주의해야 한다.
+- 사실 클래스 필터에서 통과하지 못한 대상은 프록시를 만들 필요조차 없다.
+
+### 6.5.2 DefaultAdvisorAutoProxyCreator의 적용
+#### 클래스 필터를 적용한 포인트컷 작성
+- 만들어야할 클래스는 하나 뿐. 메서드 이름만 비교하던 포인트컷인 NameMatchMethodPointcut을 **상속**해서 프로퍼티로 주어진 이름 패턴을 가지고 클래스 이름을 비교하는 ClassFilter 추가
+
+```java
+// 6-51. 클래스 필터가 포함된 포인트컷
+
+...
+
+public class NameMatchClassMethodPointcut extends NameMatchMethodPointcut {
+    public void setMappedClassName(String mappedClassName) {
+        this.setClassFilter(new SimpleClassFilter(mappedClassName)); // 모든 클래스를 다 허용하던 디폴트 클래스 필터를 프로퍼티로 받은 클래스 이름을 이용하여 필터를 만들어 덮어 씌운다.
+    }
+
+    static class SimpleClassFilter implements ClassFilter {
+        private String mappedName;
+
+        private SimpleClassFilter(String mappedName) {
+            this.mappedName = mappedName;
+        }
+        @Override
+        public boolean matches(Class<?> clazz) {
+            return PatternMatchUtils.simpleMatch(mappedName, clazz.getSimpleName()); // 와일드 카드(*)가 들어간 문자열 비교를 지원하는 스프링의 유틸리티 메서드다. *name, name*, *name* 세 가지 방식을 모두 지원한다.
+        }
+    }
+}
+```
+
+#### 어드바이저를 이용하는 자동 프록시 생성기 등록
+- 적용할 자동 프록시 생성기인 DefaultAdvisorAutoProxyCreator는 등록된 빈 중에서 Advisor 인터페이스를 구현한 것을 모두 찾는다.
+- 그리고 생성되는 모든 빈에 대해 어드바이저 포인트컷을 적용해보면서 프록시 적용 대상을 선정한다.
+- 빈 클래스가 프록시 선정 대상이라면 프록시를 만들어 원래 빈 오브젝트와 바꿔치기한다.
+
+- DefaultAdvisorAutoProxyCreator 등록은 다음 한 줄이면 충분하다.
+```xml
+<bean class+"org.springframework.aop.framework.autoproxy.DefaultAdvisorAutoProxyCreator" />
+```
+
+#### 포인트컷 등록
+- 다음과 같이 기존 포인트컷 설정을 삭제하고 새로 만든 클래스 필터 지원 포인트컷을 빈으로 등록한다.
+- SimpleImpl로 이름이 끝나는 클래스와 upgrade로 시작하는 메서드를 설정해주는 포인트컷이다.
+```xml
+// 6-52. 포인트컷 빈
+<bean id="transactionPointcut"
+        class="springbook.service.NameMatchClassMethodPointcut">
+	<property name="mappedClassName" value="*ServiceImpl"/> <!-- 클래스 이름 패턴 -->
+	<property name="mappedName" value="upgrade*" /> <!-- 메소드 이름 패턴 -->
+</bean>
+```
+
+#### 어드바이스와 어드바이저
+
