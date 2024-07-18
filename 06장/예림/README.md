@@ -1480,4 +1480,39 @@ public class NameMatchClassMethodPointcut extends NameMatchMethodPointcut {
 ```
 
 #### 어드바이스와 어드바이저
+- 이제는 `transactionAdvisor를` 명시적으로 DI하는 빈은 존재하지 않는다.
+- 대신 어드바이저를 이용하는 자동 프록시 생성기인 `DefaultAdvisorAutoProxyCreator에` 의해 자동 수집되고, 프록시 대상 선정 과정에 참여하며, 자동 생성된 프록시에 다이내믹하게 DI 돼서 동작하는 어드바이저가 된다.
 
+
+#### ProxyFactoryBean 제거와 서비스 빈의 원상복구
+- userServiceImpl의 빈 아이디를 이제 userService로 되돌려 놓을 수 있다.
+- 프록시 팩토리 빈은 제거해도 된다.
+
+#### 자동 프록시 생성기를 사용하는 테스트
+- 자동 프록시 생성기를 적용한 후에는 알아서 프록시가 생성되어 프록시 오브젝트만 남아있을 뿐이다.
+- 지금까지는 어떻게든 설정파일에는 정상적인 경우의 빈 설정만을 두고 롤백을 일으키는 예외상황에 대한 테스트는 테스트 코드에서 빈을 가져와 수동 DI로 구성을 바꿔서 사용했다.
+- 하지만 자동 프록시 생성기라는 스프링 컨테이너에 종속적인 기법을 사용했기 때문에 예외 상황을 위한 테스트 대상도 빈으로 등록해줄 필요가 있다.
+- 기존에 만들어서 사용하던 강제 예외 발생용 `TestUserService` 클래스를 이제는 직접 빈으로 등록해보자. 그런데 두 가지 문제가 있다.
+  - `TestUserService`가 `UserServiceTest` 클래스의 내부에 정의된 스태틱 클래스다.
+  - 트랜잭션 어드바이스를 적용해주는 대상 클래스의 이름 패턴이 *ServiceImpl이라고 되어 있어서 `TestUserService`는 빈으로 등록해도 포인트컷이 프록시 적용 대상으로 선정해주지 않는다.
+- `TestUserService`를 조금 수정하자.
+```java
+// 6-54. 수정한 테스트용 UserService 구현 클래스
+static class TestUserServiceImpl extends UserServiceImpl { // 포인트컷 클래스 필터에 선정되도록 이름 변경. 이래서 처음부터 이름을 잘 지어야 한다.
+	private String id = "madnite1"; // 테스트 픽스처의 user(3)의 id 값을 고정시켜버렸다.
+
+	protected void upgradeLevel(User user) {
+		if(user.getId().equals(this.id)) throw new TestUserServiceException();
+		super.upgradeLevel(user);
+	}
+}
+```
+
+```xml
+// 6-55. 테스트용 UserService의 등록
+<bean id="testUserService" class="springbook.user.service.UserServiceTest$TestUserServiceImpl" parent="userService" />
+<!-- 스태틱 멤버 클래스는 $로 지정한다. -->
+<!-- 프로퍼티 정의를 포함해서 userService 빈의 설정을 상속 받는다. -->
+```
+
+> 특정 테스트 클래스에서만 사용되는 클래스는 스태틱 멤버 클래스로 정의하는 것이 편리하다.
