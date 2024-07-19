@@ -1516,3 +1516,50 @@ static class TestUserServiceImpl extends UserServiceImpl { // 포인트컷 클�
 ```
 
 > 특정 테스트 클래스에서만 사용되는 클래스는 스태틱 멤버 클래스로 정의하는 것이 편리하다.
+
+```java
+// 6-56. testUserService 빈을 사용하도록 수정된 테스트
+public class UserServiceTest {
+	@Autowired UserService userService;
+	@Autowired UserService testUserService; // 같은 타입의 빈이 두 개 존재하기 때문에 필드 이름을 기준으로 주입될 빈이 결정됨.
+
+	...
+
+	@Test
+	public void upgradeAllOrNothing(){
+	    	userDao.deleteAll();
+		for(User user : users) userDao.add(user);
+
+		try {
+			this.testUserService.upgradeLevels();
+			fail("TestUserServiceException expeced");
+		}
+		catch(TestUserServiceException e) {
+		}
+	
+	    	checkLevelUpgraded(users.get(1), false);
+	}
+}
+```
+- 예외 상황을 적용하기 위한 DI 작업이 제거되어 코드가 단순해짐.
+- upgradeAllOrNothing() 테스트를 통해 자동 프록시 생성기가 userService 빈을 자동으로 트랜잭션 부가기능을 제공해주는 프록시로 대체했는지 확인해보자.
+
+#### 자동생성 프록시 확인
+- 최소한 두 가지는 확인해야 한다.
+
+1. **트랜잭션이 필요한 빈에 트랜잭션 부가기능이 적용됐는가**
+
+   - 앞에서 만든 upgradeAllOrNothing() 테스트를 통해 검증했다.
+
+2. **아무 빈에나 트랜잭션 부가기능이 적용된 것은 아닌가**
+
+   - 클래스 이름 패턴을 변경해 `testUserService` 빈에 트랜잭션이 적용되지 않게 해보자.
+   - 또는 `getBean("userService")`로 가져온 오브젝트가 JDK의 Proxy 타입인지 확인해보자.
+  
+
+### 6.5.3 포인트컷 표현식을 이용한 포인트컷
+- 스프링은 아주 간단하고 효과적인 방법으로 포인트컷의 클래스나 메서드를 선정하는 알고리즘을 작성할 수 있는 방법을 제공한다.
+- **포인트컷 표현식** : 정규식이나 JSP의 EL과 비슷한 일종의 표현식 언어를 사용해 포인트컷을 작성할 수 있도록 하는 방법
+
+#### 포인트컷 표현식
+- AspectJExpressionPointcut 클래스
