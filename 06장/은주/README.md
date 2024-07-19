@@ -893,3 +893,26 @@ public interface PointCut {
 
 ### 6.5.2. DefaultAdvisorAutoProxyCreator 의 적용
 #### 클래스 필터를 적용한 포인트컷 작성
+- 메소드 이름만 비교하던 포인트컷인 NameMatchMethodPointcut을 상속해서 프로퍼티로 주어진 이름 패턴을 가지고 클래스 이름을 비교하는 ClassFilter를 추가하도록 만든다.
+  - NameMatchMethodPointcut 은 StaticMethodMatcherPointcut 를 상속받고 있는데, setClassFilter() 는 그 클래스로부터 상속받아진다.
+```java
+public class NameMatchClassMethodPointcut extends NameMatchMethodPointcut {
+
+    public void setMappedClassName(String mappedClassName) {
+        // 모든 클래스를 다 허용하던 디폴트 클래스 필터를 프로퍼티로 받은 클래스 이름을 이용해서 필터를 만들어 덮어씌운다.
+        this.setClassFilter(new SimpleClassFilter(mappedClassName));
+    }
+    
+    static class SimpleClassFilter implements ClassFilter {
+        String mappedName;
+        
+        private SimpleClassFilter(String mappedName) {
+            this.mappedName = mappedName;
+        }
+        
+        public boolean matches(Class<?> clazz) {
+            return PatternMatchUtils.simpleMatch(mappedName, clazz.getSimpleName());
+        }
+    }
+}
+```
