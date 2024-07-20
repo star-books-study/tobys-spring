@@ -916,3 +916,22 @@ public class NameMatchClassMethodPointcut extends NameMatchMethodPointcut {
     }
 }
 ```
+
+#### 어드바이저를 이용하는 자동 프록시 생성기 등록
+- DefaultAdvisorAutoProxyCreator 는 등록된 빈 중에서 Advisor 인터페이스를 구현한 것을 모두 찾는다.
+- 생성되는 모든 빈에 대해 **어드바이저의 포인트컷을 적용해보면서 프록시 적용 대상을 선정**한다.
+- 빈 클래스가 프록시 선정 대상이라면 프록시를 생성하여, 원래 빈 오브젝트와 바꿔치기 한다
+- ProxyFactoryBean 으로 등록한 빈에서처럼 transactionAdvisor 를 명시적으로 DI 하는 빈은 존재하지 않는다
+  - 대신 어드바이저를 이용하는 **자동 프록시 생성기인 DefaultAdvisorAutoProxyCreator에 의해 자동수집되고, 프록시 대상 선정 과정에 참여하며, 자동 생성된 프록시에 다이내믹하게 DI 돼서 동작하는 어드바이저가 된다**
+
+### 6.5.3. 포인트컷 표현식을 이용한 포인트컷
+- 포인트컷 표현식을 지원하는 포인트컷을 적용하려면 AspectJExpressionPointcut 클래스를 사용하면 된다
+- Pointcut 인터페이스를 구현해야 하는 스프링의 포인트컷은 클래스 선정을 위한 클래스 필터, 메소드 선정을 위한 메소드 매처 2가지를 제공해야 한다
+
+#### 포인트컷 표현식
+- 사실 스프링이 사용하는 포인트컷 표현식은 AspectJ 라는 유명한 프레임워크에서 제공하는 것을 가져와 일부 문법을 확장하여 사용하는 것이다
+  - 따라서 이를 AspectJ 포인트컷 표현식이라고도 한다
+
+#### 포인트컷 표현식 문법
+- AspectJ 포인트컷 표현식은 포인트컷 지시자를 이용해 작성한다
+  - 가장 대표적인 것이 execution()
