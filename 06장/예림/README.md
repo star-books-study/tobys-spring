@@ -1566,7 +1566,8 @@ public class UserServiceTest {
   - 포인트컷 표현식을 사용하려면 해당 클래스를 사용
   - AspectJ 프레임워크에서 제공하는 클래스
 
-- 
+- `Pointcut` 인터페이스를 구현해야 하는 스프링의 포인트컷은 클래스 선정을 위한 **클래스 필터**와 메소드 선정을 위한 **메소드 매처** 두 가지를 각각 제공해야 한다.
+
 #### 포인트컷 표현식 문법
 
 <img width="609" alt="image" src="https://github.com/user-attachments/assets/a27ccd36-06ce-48b1-ba1e-be300b12fb20">
@@ -1584,23 +1585,6 @@ public class UserServiceTest {
 - 주의해야 할 점
   - 표현식이 문자열이기 때문에 컴파일 시점에서는 오류 검증이 불가
   - 다양한 테스트를 미리 만들어서 검증된 표현식을 사용하는 것이 중요
-```java
-// 6-61. 메서드 시그니처를 이용한 포인트컷 표현식 테스트
-```
-
-#### 포인트컷 표현식 테스트
-```java
-// 6-62. 포인트컷과 메서드를 비교해주는 테스트 헬퍼 메서드
-```
-```java
-// 6-63. 타깃 클래스의 메서드 6개에 대해 포인트컷 선정 여부를 검사하는 헬퍼 메서드
-```
-
-```java
-// 6-64. 포인트컷 표현식 테스트
-```
-
-<img width="613" alt="스크린샷 2024-07-20 오후 5 37 10" src="https://github.com/user-attachments/assets/bb62f6af-e942-4208-ab74-43ab7336a621">
 
 #### 포인트컷 표현식을 이용하는 포인트컷 적용
 - 포인트컷 표현식은 메소드의 시그니처를 비교하는 방식인 `execution()` 외에도 몇 가지 표현식 스타일을 갖고 있다.
@@ -1618,4 +1602,11 @@ public class UserServiceTest {
 	<property name="expression" value="execution(* *..*ServiceImpl.upgrade*(..))" />
 </bean>
 ```
+- 포인트컷 표현식을 사용하면 로직이 짧은 문자열이 담기기 때문에 클래스나 코드를 추가할 필요가 없어서 코드와 설정이 모두 단순해진다.
+- 반면에 문자열로 된 표현식이므로 런타임 시점까지 문법 검증이나 기능 확인이 되지 않는다는 단점도 있다.
 #### 타입 패턴과 클래스 이름 패턴
+- 클래스 이름 패턴과 포인트컷 표현식에서 사용하는 타입 패턴은 중요한 차이점이 있다.
+- TetstUserServiceImpl이라고 변경했던 테스트용 클래스의 이름은 다시 TestUserService라고 바꿔보자. 테스트를 실행 해보면 결과는 성공이다.
+- 포인트 컷이 `execution(* *..*ServiceImpl.upgrade*(..))` 로 되어 있는데 어떻게 TestUserService 클래스로 등록된 빈이 선정 됐을까?
+- 그 이유는 포인트컷 표현식의 클래스 이름에 적용되는 패턴은 클래스 이름 패턴이 아니라 타입 패턴이기 때문이다.
+- TestUserService의 클래스 이름은 TestUserService 이지만, 타입을 따져보면 TestUserService 클래스 이고, 슈퍼클래스인 UserServiceImpl, 구현 인터페이스인 UserService 세 가지가 모두 적용된다.
