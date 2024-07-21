@@ -935,3 +935,52 @@ public class NameMatchClassMethodPointcut extends NameMatchMethodPointcut {
 #### 포인트컷 표현식 문법
 - AspectJ 포인트컷 표현식은 포인트컷 지시자를 이용해 작성한다
   - 가장 대표적인 것이 execution()
+```java
+public class Target implements Targetlnterface (
+  public void hello() {}
+  public void hello(String a) {}
+  public int minus(int a, int b) throws RuntimeException { return 0; } 
+  public int plus(int a, int b) { return 0; }
+  public void method() {}
+}
+
+public class Bean {
+  public void method() throws RuntimeException {}
+}
+```
+
+![alt text](image-11.png)
+- 메소드의 풀 시그니처를 문자열로 비교하는 개념이라고 생각하면 된다
+  - [] : 옵션 항목 (생략 가능)
+  - | : OR 조건
+- `public int springbook.learningtest.spring.pointcut.Target.minus(int,int) throws iava . lang.RuntimeException`
+- 포인트컷의 선정 방식은 클래스 필터와 메소드 매처를 각각 비교하여, 2가지 조건을 모두 만족하면 해당 메소드는 포인트컷의 선정 대상이 된다
+
+#### 포인트컷 표현식 테스트
+- 필수가 아닌 항목 (접근 제한자, 클래스 타입, 예외 패턴) 을 제거하면 다음과 같이 간단해진다
+- `execution(int minus(int, int))`
+- 단, 생략한 부분은 모든 경우를 다 허용하도록 되어있다
+- 모든 선정 조건을 다 없애고 모든 메소드를 다 허용하는 포인트컷이 필요할 경우 아래와 같이 와일드카드를 사용하면 된다
+  - `execution(* *(..))`
+- 주어진 포인트컷과 메소드를 비교해주는 테스트 헬퍼 메소드
+```java
+public void pointcutMatches(String expression, Boolean expected, Class<?> clazz, String methodName, Class<?> ...args) throws Exception {
+  AspectJExpressionPointcut pointcut =new AspectJExpressionPointcut(); 
+  pointcut.setExpression(expression);
+  
+  // 포인트컷의 클래스 필터, 메소드 매처 2가지를 동시에 만족하는지 확인
+  assertThat(pointcut.getClassFilter(), matches(clazz) && pointcut.getMethodMatcher().matches(clazz.getMethod(methodName, args), null), is(expected));
+}
+```
+
+#### 포인트컷 표현식을 이용하는 포인트컷 적용
+- 스프링에서 사용될 때 빈의 이름으로 비교하는 bean() 이 있다.
+  - bean(*Service) 라고 쓰면 아이디가 Service 로 끝나는 모든 빈을 선택한다
+  - 클래스와 메소드라는 기준을 넘어서는 유용한 선정 방식이다
+- 특정 애노테이션이 타입, 메소드, 파라미터에 적용되어 있는 것을 보고 메소드를 선정하게 하는 포인트컷도 만들 수 있다.
+  - @annotation(org.springframework.transaction.annotation.Transactional)
+  - @Transactional 애노테이션이 적용된 메소드를 선정하게 해준다
+
+#### 타입 패턴과 클래스 이름 패턴
+- 포인트컷 표현식의 클래스 이름에 적용되는 패턴은 클래스 이름 패턴이 아니라 `타입패턴` 이다.
+  - 따라서 인터페이스로 선언해도, 해당 인터페이스를 구현하고 있는 구현체들도 타입 패턴의 조건을 충족하는 것이다.
