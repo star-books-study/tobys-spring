@@ -103,7 +103,8 @@ public class UserServiceTx implements UserService {
 - 이 UserServiceTx 에 트랜잭션 경계설정이라는 부가적인 작업을 부여해보자.
 ```java
 public class UserServiceTx implements UserService { 
-    UserService userService; PlatformTransactionManager transactionManager;
+    UserService userService; 
+    PlatformTransactionManager transactionManager;
 
     public void setTransactionManager(PlatformTransactionManager transactionManager) {
         this.transactionManager = transactionManager; 
@@ -984,3 +985,22 @@ public void pointcutMatches(String expression, Boolean expected, Class<?> clazz,
 #### 타입 패턴과 클래스 이름 패턴
 - 포인트컷 표현식의 클래스 이름에 적용되는 패턴은 클래스 이름 패턴이 아니라 `타입패턴` 이다.
   - 따라서 인터페이스로 선언해도, 해당 인터페이스를 구현하고 있는 구현체들도 타입 패턴의 조건을 충족하는 것이다.
+
+### 6.5.4. AOP 란 무엇인가?
+#### 트랜잭션 서비스 추상화
+- 트랜잭션 추상화란 결국 인터페이스와 DI 를 통해 **무엇을 하는지 남기고, 그것을 어떻게 하는지 분리한 것**이다
+- '어떻게 하는지' 는 더이상 비즈니스 로직 코드에는 영향을 주지 않고 독립적으로 변경할 수 있게 되었다
+
+#### 프록시와 데코레이터 패턴
+- 클라이언트가 인터페이스와 DI를 통해 접근하도록 설계하고, `데코레이터 패턴`을 적용한다
+- 비즈니스 로직을 담은 클래스 코드에 영향을 주지 않으면서 트랜잭션이라는 부가기능을 자유롭게 부여할 수 있는 구조가 되었다
+- 트랜잭션 처리하는 코드는 데코레이터에 담겨서, 클라이언트와 비즈니스 로직을 담은 타깃 클래스 사이에 존재하도록 만들었다
+
+#### 다이내믹 프록시와 프록시 팩토리 빈
+- 프록시 클래스 없이도 프록시 오브젝트를 런타임 시에 만들어주는 JDK 다이내믹 프록시 기술을 적용하여, 프록시 클래스 코드 작성의 부담을 덜었다
+- JDK 다이내믹 프록시와 같은 프록시 기술을 추상화한 스프링의 프록시 팩토리 빈을 이용해서 다이내믹 프록시 생성 방법에 DI 를 도입했다.
+- 내부적으로 `템플릿/콜백 패턴을 활용하는 스프링의 프록시 팩토리 빈` 덕분에 **부가기능을 담은 어드바이스와 부가기능 선정 알고리즘을 담은 포인트컷은 프록시에서 분리**될 수 있었고, 여러 프록시에서 공유해서 사용할 수 있게 되었다
+
+#### 자동 프록시 생성 방법과 포인트컷
+- 스프링 컨테이너의 빈 생성 후처리 기법을 활용해 **컨테이너 초기화 시점에 자동으로 프록시를 만들어주는 방법**을 도입했다
+- 트랜잭션 부가기능을 어디에 적용하는지에 대한 정보는 포인트컷이라는 독립적인 정보로 완전히 분리할 수 있었다
