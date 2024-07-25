@@ -1014,3 +1014,5 @@ public void pointcutMatches(String expression, Boolean expected, Class<?> clazz,
     - 덕분에 부가기능인 트랜잭션 경계설정 기능은 TransactionAdvice 라는 이름으로 모듈화될 수 있었다
 
 #### AOP: 애스펙트 지향 프로그래밍
+- 애스펙트 : 그 자체로 애플리케이션 핵심 기능을 담고 있지는 않지만, 애플리케이션을 구성하는 중요한 한 가지 요소이고, 핵심기능에 부가되어 의미를 갖는 특별한 모듈
+- 
