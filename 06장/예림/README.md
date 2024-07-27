@@ -1691,4 +1691,159 @@ public class UserServiceTest {
 - **타깃** : 부가기능을 부여할 대상. 핵심 기능을 담은 클래스일 수도 있지만 경우에 따라 부가기능을 제공하는 프록시 오브젝트일 수도 있음
 - **어드바이스** : 타깃에게 제공할 부가기능을 담은 모듈. 오브젝트로 정의하기도 하지만 메서드 레벨에서 정의할 수도 있다.
 - **조인 포인트** : 어드바이스가 적용될 수 있는 위치. 스프링의 프록시 AOP에서 조인 포인트는 메서드 실행 단계 뿐. 타깃 오브젝트가 구현한 인터페이스의 모든 메서드는 조인 포인트가 된다.
-- 
+- **포인트컷** : 어드바이스를 적용할 조인 포인트를 선별하는 작업 또는 그 기능을 정의한 모듈
+- **프록시** : 클라이언트와 타깃 사이에 투명하게 존재하면서 부가기능을 제공하는 오브젝트
+- **어드바이저** : 포인트컷과 어드바이스를 하나씩 갖고 있는 오브젝트. AOP의 가장 기본이 되는 모듈로, 스프링 AOP에서만 사용되는 특별한 용어
+- **애스펙트** : AOP의 기본 모듈로 한 개 또는 그 이상의 포인트컷과 어드바이스의 조합으로 만들어지며 보통 싱글톤 형태의 오브젝트로 존재.
+
+
+### 6.5.7 AOP 네임스페이스
+스프링의 프록시 방식의 AOP를 적용하려면 최소한 네 가지 빈 등록 필요
+- **자동 프록시 생성기**
+  - 스프링의 DefaultAdvisorProxyCreator 클래스를 빈으로 등록
+  - DI하지도 DI되지도 않으며 독립적으로 존재
+  - 애플리케이션 컨텍스트가 빈 오브젝트를 생성하는 과정에 빈 후처리기로 참여
+  - 빈으로 등록된 어드바이저를 이용해서 프록시를 자동으로 생성하는 기능을 담당
+- **어드바이스**
+  - 부가기능을 구현한 클래스를 빈으로 등록
+  - TransactionAdvice는 AOP 관련 빈 중에서 유일하게 직접 구현한 클래스 사용
+- **포인트컷**
+  - 스프링의 AspectJExpressionPointcut을 빈으로 등록하고 expression 프로퍼티에 포인트컷 표현식을 넣어주면 된다.
+- **어드바이저**
+  - 스프링의 DefaultPointcutAdvisor 클래스를 빈으로 등록해서 사용한다.
+
+
+#### AOP 네임 스페이스
+- 스프링은 AOP와 관련된 태그를 정의해둔 aop 스키마 제공
+- aop 스키마에 정의된 태그는 별도의 네임스페이스를 제정해서 디폴트 네임스페이스의 <bean> 태그와 구분해 사용 가능
+- aop 스키마에 정의된 태그를 사용하기 위해 작성해야 하는 설정 파일
+```xml
+// 6-66. aop 네임스페이스 선언
+<?xml version="1.0" encoding="UTF-8"?>          
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:aop="http://www.springframework.org/schema/aop"        
+    xsi:schemaLocation="http://www.springframework.org/schema/beans          
+			http://www.springframework.org/schema/beans/spring-beans-3.0.xsd          
+			http://www.springframework.org/schema/aop
+			http://www.springframework.org/schema/aop/spring-aop-3.0.xsd"/>
+  ...
+</beans>
+```
+- 이제 aop 네임스페이스를 이용해 기존 AOP 관련 빈 설정을 변경해보자.
+```xml
+// 6-67. aop 네임스페이스를 적용한 AOP 설정 빈
+<aop:config>
+<aop:pointcut id="transactionPointcut" expression="execution(* *..*ServiceImpl.upgrade*(..))" />
+<aop:advisor advice-ref="transactionAdvice" pointcut-ref="transactionPointcut"/>
+</aop:config>
+```
+
+	- <`aop:config>`, `<aop:pointcut>`, `<aop:advisor>` 세 가지 테그를 정의해두면 그에 따라 세 개의 빈 자동 등록
+
+
+#### 어드바이저 내장 포인트컷
+
+- 포인트컷 표현식을 직접 `<aop:advisor>` 태그에 담아서 다음과 같이 만들 수도 있다.
+```xml
+// 6-68. 포인트컷을 내장한 어드바이저 태그
+<aop:config>
+  <aop:advisor advice-ref="transactionAdvice" pointcut="execution(* *..*ServiceImpl.upgrade*(..))"/>
+</aop:config>
+```
+
+## 6.6 트랜잭션 속성
+
+- 트랜잭션 추상화를 할 때 그냥 넘어간 것이 한 가지 있음
+- 트랜잭션 속성을 담당하는 `DefaultTransactionDefinition` 오브젝트임
+- 트랜잭션 경계는 트랜잭션 매니저에서 트랜잭션을 가져오는 것과 `commit()`, `rollback()` 중 하나를 호출하는 것으로 설정됨
+
+```java
+// 6-69. 트랜잭션 경계 설정 코드
+public Object invoke(MethodInvocation invocation) throws Throwable {
+    TransactionStatus status =
+            this.transactionManager.getTransaction(
+                    new DefaultTransactionDefinition()); 
+    try{
+        Object ret = invocation.proceed();
+        this.transactionManager.commit(status);
+        return ret;
+    }catch (RuntimeException e){
+        this.transactionManager.rollback(status);
+        throw e;
+    }
+}
+```
+
+### 6.6.1 트랜잭션 정의
+- `DefaultTransactionDefinition`이 구현하고 있는 `TransactionDefinition` 인터페이스는 트랜잭션 동작 방식에 영향을 줄 수 있는 네 가지 속성을 정의하고 있음.
+
+
+#### 트랜잭션 전파
+- **트랜잭션 전파** : 트랜잭션의 경계에서 이미 진행 중인 트랜잭션이 있을 때 또는 없을 때 어떻게 동작할 것인가를 결정하는 방식
+
+<img width="408" alt="image" src="https://github.com/user-attachments/assets/7212d2ee-4e04-4a56-9c63-f926866b33c7">
+
+- B는 A 트랜잭션에 종속돼야 하는가, 독립적으로 작동해야 하는가를 정의하는 것이 트랜잭션 전파 속성
+- 대표적으로 다음과 같은 트랜잭션 전파 속성을 줄 수 있다.
+
+- **PROPAGATION_REQUIRED**
+  - 가장 많이 사용되는 전파 속성
+  - 진행 중인 트랜잭션이 없으면 새로 시작하고, 이미 시작된 트랜잭션이 있으면 참여한다.
+- **PROPAGATION_REQUIRES_NEW**
+  - 항상 새로운 트랜잭션을 실행한다.
+- **PROPAGATION_NOT_SUPPORTED**
+  - 진행 중인 트랜잭션이 있어도 무시한다.
+  - 포인트컷을 복잡하게 만들지 않고 특정 기능에만 트랜잭션 적용이 안되도록 설정하고자 할 때 사용
+
+
+#### 격리 수준
+- 모든 DB 트랜잭션은 격리수준을 갖고 있어야 한다.
+- 기본적으로는 DB에 설정되어 있고 DefaultTransactionDefinition도 `ISOLATION_DEFAULT`이다.
+- 특별한 작업을 수행하는 메서드의 경우 독자적인 격리수준을 지정할 필요가 있다.
+
+#### 제한 시간
+- 트랜잭션 수행 제한시간을 설정할 수 있다.
+- DefaultTransactionDefinition의 기본 설정은 제한시간이 없는 것이다.
+
+#### 읽기 전용
+- 읽기전용 트랜잭션은 트랜잭션 내에서 데이터 조작 시도를 막아줄 수 있다.
+
+### 6.6.2 트랜잭션 인터셉터와 트랜잭션 속성
+- 메서드 별로 다른 트랜잭션 정의를 적용하려면 어드바이스의 기능을 확장해야 한다.
+- 메소드 이름 패턴에 따라 트랜잭션 정의가 적용되도록 만드는 것이다.
+
+#### TransactionIntercepter
+- 스프링에서 제공
+- TransactionInterceptor는 TransactionAdvise와 비슷하지만, 트랜잭션 정의를 메소드 이름 패턴을 이용해 다르게 지정할 수 있는 방법 추가로 제공
+- PlatformTransactionManager와 Properties 타입의 두 가지 프로퍼티를 갖고 있음
+- Properties 타입의 프로퍼티 이름은 transactionAttribute로, 트랜잭션 속성을 정의한 프로퍼티임. TransactionAttribute 인터페이스는 TransactionDefinition의 네 가지 기본 항목에 rollbackOn()가 추가로 존재함.
+- 우리가 직접 구현했던 TransactionAdvice 코드를 다시 살펴보면 변경될 수 있는 코드가 2군데 존재한다.
+  - 하나는 트랙잭션 속성을 설정하는 DefaultTransactionDefinition 객체를 다루는 부분
+  - 나머지 하나는 어떤 어떤 예외가 발생하면 롤백을 수행할 지 결정하는 부분
+- rollbackOn() 메서드를 사용해 어떤 예외는 롤백을 하거나, 롤백을 하지 않을지 설정할 수 있다.
+
+```java
+// 6-70. 트랜잭션 경계 설정 코드의 동작 방식 변경 포인트
+@Override
+public Object invoke(MethodInvocation invocation) throws Throwable {
+    TransactionStatus status = transactionManager.getTransaction(new DefaultTransactionDefinition()); // (1) 트랜잭션 정의를 통한 네 가지 조건 (트랜잭션 전파, 격리수준, read-only, 타임아웃)
+    try {
+        Object ret = invocation.proceed();
+        transactionManager.commit(status);
+        return ret;
+    } catch (RuntimeException e) { // (2) 롤백 대상인 예외 종류
+        transactionManager.rollback(status);
+        throw e;
+    }
+}
+```
+
+> (1), (2)가 결합해서 트랜잭션 부가기능의 행동을 결정하는 TransactionAttribute 속성이 된다.
+
+- 스프링이 제공하는 TransactionIntercepter에는 기본적으로 두 가지 종류의 예외 처리 방식이 있다.
+- 런타임 예외가 발생하면 트랜잭션은 롤백한다.
+- 체크 예외가 발생하면 이것을 예외상황으로 해석하지 않고 일종의 비지니스 로직에 따른, 의미가 있는 리턴 방식의 한 가지로 인식해서 트랜잭션을 커밋한다.
+- 그러나 이런 예외처리 기본 원칙을 따라지 않는 예외적인 케이스에서는 rollbackOn() 설정을 통해 기본 원칙과 다른 예외처리가 가능하다.
+
+#### 메서드 이름 패턴을 이용한 트랜잭션 속성 지정
