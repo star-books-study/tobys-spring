@@ -1087,3 +1087,119 @@ public void pointcutMatches(String expression, Boolean expected, Class<?> clazz,
    - 스프링의 DefaultPointcutAdvisor 클래스를 빈으로 등록해서 사용한다
    - 어드바이스와 포인트컷을 프로퍼티로 참조하며, **자동 프록시 생성기에 의해 자동 검색되어 사용된다**
 - 부가기능을 담은 코드로 만든 어드바이스를 제외한 **나머지는 모두 스프링이 직접 제공하는 클래스를 빈으로 등록하고 프로퍼티 설정만 해준 것이다**
+
+## 6.6. 트랜잭션 속성
+```java
+public Object invoke(MethodInvocation invocation) throws Throwable { 
+  // 트랜잭션 시작
+  TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+  try{
+    Object ret = invocation.proceed(); 
+    this.transactionManager.commit(status); // 트랜잭션 종료 조건 1
+    return ret;
+  }catch (RuntimeException e){ 
+    this.transactionManager.rollback(status); // 트랜잭션 종료 조건 2
+    throw e;
+  }
+}
+```
+- **트랜잭션의 경계는 트랜잭션 매니저에서 트랜잭션을 가져오는 것과 commit(), rollback() 중의 하나를 호출하는 것으로 설정된다**
+
+### 6.6.1. 트랜잭션 정의
+- DefaultTransactionDefinition 이 구현하고 있는 TransactionDefinition 인터페이스는 트랜잭션 동작방식에 영향을 주는 4가지 속성을 정의하고 있다
+
+#### 트랜잭션 전파
+- 트랜잭션 전파 : 트랜잭션 경계에서 이미 진행중인 트랜잭션이 있을 때, 또는 없을 때 어떻게 동작할 것인가를 결정하는 방식
+- `PROPAGATION_REQUIRED`
+  - 가장 많이 사용되는 트랜잭션 전파 속성
+  - **진행중인 트랜잭션이 없으면 새로 시작, 이미 시작된 트랜잭션이 있으면 이에 참여**
+  - DefaultTransactionDefinition 의 트랜잭션 전파속성에 해당된다
+- `PROPAGATION_REQUIRES_NEW`
+  - **항상 새로운 트랜잭션 시작**
+  - 독립적인 트랜잭션이 보장되어야 하는 코드에 적용할 수 있다
+- `PROPAGATION_NOT_SUPPORTED`
+  - **트랜잭션 없이 동작**하도록 만들 수 있으며, 진행중인 트랜잭션이 있어도 무시한다
+  - 트랜잭션 경계설정은 보통 AOP 를 사용해 한번에 많은 메소드에 동시에 적용하는 방법을 사용하는데, 그 중 특별한 메소드만 트랜잭션 적용에서 제외하기 위함이다.
+- 트랜잭션 매니저를 통해 **트랜잭션을 시작하려고 할 때 getTransaction() 을 사용하는 이유는 바로 트랜잭션 전파 속성이 있기 때문이다.**
+  - getTransaction() 은 트랜잭션 전파 속성과 현재 진행중인 트랜잭션이 존재하는지 여부에 따라 새로운 트랜잭션을 시작할 수도, 이미 진행중인 트랜잭션에 참여하기만 할 수도 있다
+
+#### 격리수준
+- 적절하게 격리수준을 조정해서 가능한 많은 트랜잭션을 동시에 진행시키면서도 문제가 발생하지 않게 하는 제어가 필요하다
+- 격리수준은 기본적으로 DB에 설정되어 있지만 JDBC 드라이버, DataSource 등에서 재설정할 수 있고, 필요하다면 트랜잭션 단위로 격리수준을 조정할 수 있다
+
+#### 제한시간
+- 트랜잭션을 수행하는 제한시간을 설정할 수 있다.
+- 트랜잭션을 직접 시작할 수 있는 PROPAGATION_REQUIRED, PROPAGATION_REQUIRES_NEW 와 함께 사용해야만 의미가 있다
+
+#### 읽기전용
+- 읽기전용으로 설정해두면 트랜잭션 내에서 데이터 조작하는 시도를 막을 수 있다
+  - 또한 데이터 액세스 기술에 따라 성능이 향상될 수도 있다
+- TransactionDefinition 타입 오브젝트를 생성하고 사용하는 코드는 트랜잭션 경계설정 기능을 가진 TransactionAdvice 이다.
+- 트랜잭션 정의를 바꾸고 싶다면 디폴트 속성을 가진 DefaultTransactionDefinition 을 사용하는 대신 외부에서 정의된 TransactionDefinition 오브젝트를 DI 받아 사용하면 된다
+  - 하지만 이 방법으로 트랜잭션 속성을 변경할 시 TransactionAdvice 를 사용하는 모든 트랜잭션의 속성이 한번에 바뀐다는 문제가 있다
+
+### 6.6.2. 트랜잭션 인터셉터와 트랜잭션 속성
+- 메소드별로 다른 트랜잭션 정의를 사용하려면 어드바이스 기능을 확장해야 한다
+
+#### TransactionInterceptor
+- 이미 스프링에는 편리하게 `트랜잭션 경계설정 어드바이스`로 사용할 수 있게 만들어진 TransactionInterceptor가 존재한다
+- 트랜잭션 정의를 메소드 이름 패턴을 이용해 다르게 지정할 수 있는 방법을 추가로 제공해줄 뿐이다
+- TransactionInterceptor 는 PlatformTransactionManager, Properties 타입의 두가지 프로퍼티를 가진다.
+  - transactionAttributes 는 트랜잭션 속성을 정의한 프로퍼티이다
+```java
+@Deprecated
+public TransactionInterceptor(PlatformTransactionManager ptm, Properties attributes) {
+  this.setTransactionManager(ptm);
+  this.setTransactionAttributes(attributes);
+}
+
+public void setTransactionAttributes(Properties transactionAttributes) {
+  NameMatchTransactionAttributeSource tas = new NameMatchTransactionAttributeSource();
+  tas.setProperties(transactionAttributes);
+  this.transactionAttributeSource = tas;
+}
+```
+- **트랜잭션 속성은 TransactionDefinition 의 4가지 기본 항목에 rollBackOn() 이라는 메소드를 가진 TransactionAttribute 인터페이스로 정의된다.**
+  - TransactionAttribute 를 이용하면 트랜잭션 부가기능의 동작 방식을 모두 제어할 수 있다
+```java
+public interface TransactionDefinition {
+    ...
+    default int getPropagationBehavior() { return 0; }
+    default int getIsolationLevel() { return -1; }
+    default int getTimeout() { return -1; }
+    default boolean isReadOnly() { return false; }
+    ...
+}
+
+public interface TransactionAttribute extends TransactionDefinition {
+    ...
+    boolean rollbackOn(Throwable ex);
+}
+```
+- 트랜잭션 경계설정 코드를 다시 보면 트랜잭션 부가기능 동작방식을 변경할 수 있는 곳이 두 군데 있었다.
+
+```java
+public Object invoke(MethodInvocation invocation) throws Throwable { 
+  // 트랜잭션 시작
+  TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition()); // 트랜잭션 정의를 통한 4가지 조건
+  try{
+    Object ret = invocation.proceed(); 
+    this.transactionManager.commit(status);
+    return ret;
+  }catch (RuntimeException e){  // 롤백 대상인 예외종류
+    this.transactionManager.rollback(status); 
+    throw e;
+  }
+
+  // 2가지 항목이 결합해서 트랜잭션 부가기능 행동을 결정하는 TransactionAttribute 속성이 된다
+}
+```
+- 스프링이 제공하는 TransactionInterceptor 에는 기본적으로 2가지 종류의 예외처리 방식이 있다.
+  - **런타임 예외가 발생하면 트랜잭션은 롤백된다. 반면 타깃 메소드가 런타임 예외가 아닌 체크 예외를 던지는 경우 예외상황으로 해석하지 않고 일종의 비즈니스 로직에 따른 의미있는 리턴 방식으로 인식해서 트랜잭션을 커밋한다**
+  - 그런데 rollBackOn() 속성을 통해 기본 원칙과 다른 에외처리가 가능하게 해준다
+
+#### 메소드 이름 패턴을 이용한 트랜잭션 속성 지정
+- Properties 타입의 transactionAttributes 프로퍼티는 메소드 패턴과 트랜잭션 속성을 키와 값으로 갖는 컬렉션이다.
+  ![alt text](image-12.png)
+  - 이 중 트랜잭션 전파 방식만 필수이고, 나머지는 다 생략 가능하다.
+  - 생략할 경우 모두 DefaultTransactionDefinition 에 설정된 디폴트 속성이 부여된다
