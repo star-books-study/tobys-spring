@@ -1847,3 +1847,39 @@ public Object invoke(MethodInvocation invocation) throws Throwable {
 - 그러나 이런 예외처리 기본 원칙을 따라지 않는 예외적인 케이스에서는 rollbackOn() 설정을 통해 기본 원칙과 다른 예외처리가 가능하다.
 
 #### 메서드 이름 패턴을 이용한 트랜잭션 속성 지정
+- Properties 타입의 transactionAttributes 프로퍼티는 메서드 패턴과 트랜잭션 속성을 키와 값으로 갖는 컬렉션
+- 트랜잭션 속성은 다음과 같은 문자열로 정의
+
+  <img width="579" alt="스크린샷 2024-07-28 오후 11 15 09" src="https://github.com/user-attachments/assets/56679330-1405-41bd-9845-6f5942ac3894">
+
+- 트랜잭션 전파 항목만 필수, 나머지는 생략 가능
+- 순서 바꿔도 상관 없음
+
+```xml
+// 6-71. 트랜잭션 속성 정의 예
+<bean id="transactionAdvice" 
+    class="org.springframework.transaction.interceptor.TransactionInterceptor">
+    <property name="transactionManager" ref="transactionManager"/>
+    <property name="transactionAttributes">
+        <props>
+            <prop key="get*">PROPAGATION_REQUIRED,readOnly,timeout_30</prop>
+            <prop key="upgrade*">PROPAGATION_REQUIRES_NEW,ISOLATION_SERIALIZABLE</prop>
+            <prop key="*">PROPAGATION_REQUIRED</prop>
+        </props>
+    </property>
+</bean>
+```
+
+#### tx 네임스페이스를 이용한 설정 방법
+- TransactionInterceptor 타입의 어드바이스 빈과 TransactionAttribute 타입의 속성 정보도 tx 스키마의 전용 태그를 이용해 정의할 수 있다.
+
+```xml
+// 6-72. tx 스키마의 적용 태그
+<tx:advice id="transactionAdvice" transaction-manager="transactionManager">
+    <tx:attributes>
+        <tx:method name="get*" propagation="REQUIRED" read-only="true" timeout="30"/>
+        <tx:method name="upgrade*" propagation="REQUIRES_NEW" isolation="SERIALIZABLE"/>
+        <tx:method name="*" propagation="REQUIRED"/>
+    </tx:attributes>
+</tx:advice>
+```
