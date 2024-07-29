@@ -1883,3 +1883,5 @@ public Object invoke(MethodInvocation invocation) throws Throwable {
     </tx:attributes>
 </tx:advice>
 ```
+
+### 6.6.3 포인트컷과 트랜잭션 속성의 적용 전략
