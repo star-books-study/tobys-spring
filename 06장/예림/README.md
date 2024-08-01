@@ -1951,3 +1951,114 @@ public Object invoke(MethodInvocation invocation) throws Throwable {
 #### 트랜잭션 경계 설정의 일원화
 - 트랜잭션 경계설정의 부가기능을 여러 계층에서 적용하는 것 좋지 않음. 특정 계층의 경계를 트랜잭션 경계와 일치시키는 것이 바람직
 - **비즈니스 로직을 담고 있는 서비스 계층의 오브젝트**의 메서드가 트랜잭션 경계를 부여하기에 가장 적절한 대상
+- 서비스 계층을 트랜잭션이 시작되고 종료되는 경계로 정했다면 다른 계층이나 모듈에서 DAO에 직접 접근하는 것은 차단해야 한다.
+- 트랜잭션은 보통 서비스 계층의 메서드 조합으로 만들어지므로 DAO가 제공하는 주요 기능을 서비스 계층에 위임 메서드를 만들어둘 필요가 있다.
+- 가능하면 다른 모듈의 DAO에 접근할 때는 서비스 계층을 거치도록 하는 게 바람직하다.
+- 예를 들어 UserService가 아니라면 UserDao에 직접 접근하지 않고 UserService의 메서드를 이용하는 편이 좋다.
+- UserDao 인터페이스에 정의된 메서드 중에서 add()를 제외한 5개가 UserService에 새로 추가할 후보 메서드다. getCount()를 제외한 나머지 4개 메서드는 독자적인 트랜잭션을 가지고 사용될 가능성이 높으므로 다음과 같이 UserService에 추가한다.
+```java
+// 6-76. UserService에 추가된 메서드
+public interface UserService {
+	void add(User user);
+	User get(String id);
+	List<User> getAll();
+	void deleteAll();
+	void update(User user);
+
+	void upgradeLevels();
+}
+```
+```java
+// 6-77. 추가 메서드 구현
+public class UserServiceImpl implements UserService {
+	UserDao userDao;
+	...
+	public void deleteAll() { UserDao.deleteAll(); }
+	public User get(String id) { // 생략 }
+	public List<User> getAll() { // 생략 }
+	public void update(User user) { // 생략 }
+}
+```
+- 이제 모든 User 관련 데이터 조작은 UserService라는 **트랜젝션 경계**를 통해 진행할 경우 모두 트랜잭션을 적용할 수 있게 됐다.
+
+#### 서비스 빈에 적용되는 포인트컷 표현식 등록
+- 모든 비즈니스 로직의 서비스 빈에 트랜잭션이 적용되도록 기존 표인트컷 표현식을 수정한다.
+```xml
+// 6-78. 빈 이름을 사용한 표현식을 갖는 포인트컷과 어드바이저
+<aop:config>
+	<aop:advisor advice-ref="transactionAdvice" pointcut="bean(*Service) />
+</aop:config>
+```
+- 이제 아이디가 Service로 끝나는 모든 빈에 transactionAdvice 빈의 부가기능이 적용될 것이다.
+
+#### 트랜잭션 속성을 가진 트랜잭션 어드바이스 등록
+- TransactionAdvice 클래스로 정의했던 어드바이스 빈을 **스프링의 TransactionInterceptor**를 이용하도록 변경한다.
+- 메서드 패턴과 트랜잭션 속성은 가장 보편적인 방법인 get으로 시작하는 메서드는 읽기 전용, 나머지는 디폴트 트랜잭션 속성을 따르는 것으로 설정
+
+```xml
+// 6-79. 트랜잭션 속성을 사용하는 어드바이스
+<bean id="transactionAdvice" class="org.springframework.transaction.interceptor.TransactionInterceptor">
+    <property name="transactionManager" ref="transactionManager" />
+    <property name="transactionAttributes">
+        <props>
+            <prop key="get*">PROPAGATION_REQUIRED, readOnly</prop>
+            <prop key="*">PROPAGATION_REQUIRED</prop>
+        </props>
+    </property>
+</bean>
+
+<tx:advice id="transactionAdvice">
+    <tx:attributes>
+        <tx:method name="get*" read-only="true"/>
+        <tx:method name="*"/>
+    </tx:attributes>
+</tx:attributes>
+```
+- 이미 aop 스키마 태그를 적용했으니 어드바이스도 이왕이면 tx 스키마에 정의된 태그를 이용하도록 변경
+```xml
+// 6-80. tx 스키마의 태그를 이용한 트랜잭션 어드바이스 정의
+<tx:advice id="transactionAdvice" transaction-manager="transactionManager">
+  <tx:attributes>
+    <tx:method name="get*" propagation="REQUIRED" read-only="true" />
+    <tx:method name="*" propagation="REQUIRED"/>
+  </tx:attributes>
+</tx:advice>
+```
+
+#### 트랜잭션 속성 테스트
+- get으로 시작하는 메서드는 트랜잭션 쓰기 작업이 정말 허용되지 않을까?
+
+```java
+// 6-81. 읽기전용 메서드에 쓰기 작업을 추가한 테스트용 클래스
+static class TestUserServiceImpl extends UserServiceImpl {
+    @Override
+    public List<User> getAll() {
+        for (User user : super.getAll()) {
+            super.update(user); // 강제로 쓰기 시도 -> 읽기 전용 속성으로 인한 예외가 발생해야 한다.
+        }
+        return null; // 메서드가 끝나기 전에 예외가 발생해야 하니 리턴 값은 별 의미 없음.
+    }
+}
+```
+```java
+// 6-82. 읽기전용 속성 테스트
+@Test // 일단은 어떤 예외가 던져질지 모르기 때문에 expected 없이 작성
+public void readOnlyTransactionAttribute() {
+    testUserService.getAll(); // 예외가 발생해야 함.
+}
+```
+- 테스트를 실행하면 예외가 발생한다.
+- 읽기전용으로 설정된 DB 커넥션에 대해 데이터를 조작하는 작업을 시도했기 때문에 예외 발생
+  - TransientDataAccessResourceException이라는 생소한 예외
+  - DataAccessException의 한 종류로 일시적인 예외상황을 만났을 때 발생하는 예외
+
+```java
+// 6-83. 예외 확인 테스트로 수정
+@Test(expected=TransientDataAccessResourceException.class)
+public void readOnlyTransactionAttribute() {
+    ...
+}
+```
+- 테스트 돌려보면 모두 성공
+
+## 6.7 애노테이션 트랜잭션 속성과 포인트컷
