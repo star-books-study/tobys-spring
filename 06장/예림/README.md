@@ -2062,3 +2062,131 @@ public void readOnlyTransactionAttribute() {
 - 테스트 돌려보면 모두 성공
 
 ## 6.7 애노테이션 트랜잭션 속성과 포인트컷
+- 가끔은 클래스나 메서드에 따라 제각각 속성이 다른, 세밀하게 튜닝된 트랜잭션 속성이 필요할 때가 있다.
+- 이런 경우 스프링이 제공하는 다른 방법이 있다. 직접 타깃에 트랜잭션 속성 정보를 가진 애너테이션을 지정하는 방법이다.
+
+### 6.7.1 트랜잭션 애너테이션
+
+#### @Transactional
+```java
+// 6-84. @Transaction 애너테이션을 정의한 코드
+...
+@Target({ElementType.TYPE, ElementType.METHOD}) // 애너테이션을 사용할 대상을 지정한다. 한 개 이상의 대상 지정 가능
+@Retention(RetentionPolicy.RUNTIME) // 애너테이션 정보가 언제까지 유지되는지 지정. 이렇게 지정하면 런타임 때도 애너테이션 정보를 리플렉션을 통해 얻을 수 있다.
+@Inherited // 상속을 통해서도 애너테이션 정보를 얻을 수 있게 한다.
+@Documented
+public @interface Transactional {
+	// 트랜잭션 속성의 모든 항목을 엘리먼트로 지정할 수 있다.
+	// 디폴트 값이 설정되어 있으므로 모두 생략 가능
+	@AliasFor("transactionManager")
+	String value() default "";
+	@AliasFor("value")
+	String transactionManager() default "";
+	String[] label() default {};
+	Propagation propagation() default Propagation.REQUIRED;
+	Isolation isolation() default Isolation.DEFAULT;
+	int timeout() default TransactionDefinition.TIMEOUT_DEFAULT;
+	String timeoutString() default "";
+	boolean readOnly() default false;
+	Class<? extends Throwable>[] rollbackFor() default {};
+	String[] rollbackForClassName() default {};
+	Class<? extends Throwable>[] noRollbackFor() default {};
+	String[] noRollbackForClassName() default {};
+
+}
+```
+- `@Transactional` 애너테이션의 타깃은 메서드와 타입이다. ➡️ 메서드, 클래스, 인터페이스에 사용 가능
+- 스프링은 `@Transactional`이 부여된 모든 오브젝트를 자동으로 타깃 오브젝트로 인식한다.
+- 이 때 사용되는 포인트컷은 TransactionAttribueSourcePointcut이다.
+  - 스스로 표현식과 같은 선정 기준을 갖고 있지는 않고, 부여된 빈 오브젝트를 모두 찾아서 포인트컷의 선정 결과로 돌여준다.
+- `@Transactional`은 기본적으로 트랜잭션 속성을 정의하는 것이지만, 동시에 포인트컷의 자동등록에도 사용된다.
+
+#### 트랜잭션 속성을 이용하는 포인트컷
+
+- `@Transactional` 애너테이션을 사용했을 때 어드바이저의 동작 방식은 다음과 같다.
+
+
+<img width="588" alt="스크린샷 2024-08-02 오후 5 03 27" src="https://github.com/user-attachments/assets/fdff02dc-8936-4b4e-ac77-d7447bb3662f">
+
+- TransactionInterceptro는 메서드 이름 패턴을 통해 부여되는 일괄적인 트랜잭션 속성정보 대신 `@Transactional` 애너테이션의 엘리먼트에서 트랜잭션 속성을 가져오는 AnnotationTransactionAttributeSource를 사용한다.
+
+- 이 방식을 이용하면 **포인트컷과 트랜잭션 속성을 애너테이션 하나로 지정**할 수 있다.
+- 메서드 단위로 세분화해 트랜잭션 속성을 다르게 지정할 수 있기 때문에 세밀한 트랜잭션 속성 제어가 가능해진다.
+- 트랜잭션 부가기능 적용 단위는 메서드다. 따라서 메서드마다 `@Transactional`을 부여하고 속성을 지정할 수 있다.
+- 이렇게 하면 유연한 속성 제어는 가능하겠지만 **코드는 지저분해지고, 동일한 속성 정보를 가진 애너테이션을 반복적으로 메서드마다 부여해주는 바람직하지 못한 결과를 가져올 수 있다.**
+
+#### 대체 정책
+- 그래서 스프링은 `@Transactional`을 적용할 때 4단계의 대체(fallback) 정책을 이용하게 해준다.
+- 메서드의 속성을 확인할 때 **타깃 메서드, 타깃 클래스, 선언 메서드, 선언 타입(클래스, 인터페이스) 순서에 따라서 @Transactional이 적용됐는지 차례로 확인하고, 가장 먼저 발견되는 속성 정보를 사용하게 하는 방법**이다.
+- 이런 식으로 메서드가 선언된 타입까지 단계적으로 확인해서 `@Transactional`이 발견되면 적용하고, 끝까지 발견되지 않으면 해당 메서드는 트랜잭션 적용 대상이 아니라고 판단한다.
+- 다음과 같이 정의된 인터페이스와 구현 클래스가 있다고 하다. `@Transactional`을 부여할 수 있는 위치는 총 6개다.
+```java
+// 6-85. @Transactional 대체 정책의 예
+[1]
+public interface Service {
+	[2]
+	void method1();
+	[3]
+	void method2();
+}
+[4]
+public class ServiceImpl implements Service {
+	[5]
+	public void method1() {
+	}
+	[6]
+	public void method2() {
+	}
+}
+```
+- `@Transactional`이 위치할 수 있는 후보 순서
+  - [5]와 [6] -> [4] -> [2]와 [3] -> [1]
+- `@Transactional`을 사용하면 대체 정책을 잘 활용해서 애너테이션 자체는 최소환으로 사용하면서 세밀한 제어 가능
+-  `@Transactional`은 먼저 타입 레벨에 정의되고 공통 속성을 따르지 않는 메서드에 대해서만 메서드 레벨에 다시 `@Transactional`을 부여해주는 식으로 사용해야 한다.
+-  기본적으로 `@Transactional` 적용 대상은 클라이언트가 사용하는 인터페이스가 정의한 메서드이므로 `@Transactional`도 타깃 클래스보다는 인터페이스에 두는 게 바람직하다.
+-  하지만 인터페이스를 사용하는 프록시 방식의 AOP가 아닌 방식으로 트랜잭션을 적용하면 무시되기 때문에 안전하게 **타깃 클래스에 `@Transactional`에 두는 방법을 권장**
+
+#### 트랜잭션 애너테이션 사용을 위한 설정
+- 스프링은 `@Transactional`을 이용한 트랜잭션 속성을 사용하는 데 필요한 모든 설정을 다음 태그 하나에 담아뒀다.
+```xml
+<tx:annotation-driven/>
+```
+
+### 6.7.2 트랜잭션 애너테이션 적용
+- `@Transactional`을 UserService에 적용해보자.
+- 꼭 세밀한 트랜잭션 설정이 필요할 때만 `@Transactional`을 사용해야 하는 것은 아니다.
+- 다만 `@Transactional`을 사용하면 트랜잭션 적용 대상을 손쉽게 파악할 수 없고, 무분별하게 사용되거나 자칫 빼먹을 수도 있기 때문에 주의가 필요하다.
+- **`<tx:attributes>` 태그를 이용해 설정했던 트랜잭션 속성을 그대로 애너테이션으로 바꿔보자.**
+
+```xml
+// 6-86. tx 스키마의 태그를 이용한 트랜잭션 속성 정의
+<tx:attributes>
+	<tx:method name="get" read-only="true" />
+	<tx:method name="*" />
+</tx:attributes>
+```
+- 애너테이션을 이용할 때는 이 두 가지 속성 중에서 많이 사용되는 한 가지를 타입 레벨에서 공통 속성으로 지정해주고, 나머지 속성은 개별 메서드에 적용해야 한다.
+- 메서드 레벨의 속성은 메서드마다 반복돼야 하므로 속성의 종류가 두 가지 이상이고 적용 대상 메서드의 비율이 비슷하다면 메서드에 많은 `@Transactional` 애너테이션이 반복될 수 있다.
+
+```java
+// 6-87. @Transactional 애너테이션을 이용한 속성 부여
+@Transactional // <tx:method name="*" />과 같은 설정 효과를 가져온다. 메서드 레벨 @Transactional이 없으므로 대체 정책에 따라 타입 레벨에 부여된 디폴트 속성이 적용된다.
+public interface UserService {
+	void add(User user);
+	void deleteAll();
+	void update(User user);
+	void upgradeLevels();
+
+	@Transactional(readOnly=true) // <tx:method name="get" read-only="true" />를 애너테이션 방식을 변경한 것. 메서드 단위로 부여된 트랜잭션 속성이 타입 레벨에 부여된 것에 우선해서 적용된다. 같은 속성을 가졌어도 메서드 레벨에 부여되는 메서드마다 반복될 수 밖에 없다.
+	User get(String id);
+
+	@Transactional(readOnly=true)
+	List<User> getAll();
+}
+```
+- **대체 정책 순서는 타깃 클래스가 인터페이스보다 우선하므로 모든 메서드의 트랜잭션은 디폴트 속성을 갖게 된다.**
+- UserService 인터페이스의 getAll() 메서드에 부여한 읽기 전용 속성은 무시되고, 읽기전용 속성을 검증하는 `readOnlyTransactionAttribute()` 테스트는 실패할 것이다.
+
+
+## 6.8 트랜잭션 지원 테스트
+### 6.8.1 선언적 트랜잭션과 트랜잭션 전파 속성
