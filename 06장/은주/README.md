@@ -1365,3 +1365,64 @@ public interface UserService {
 - **데이터 액세스 기술에 상관없이, 트랜잭션 기술에 상관 없이** DAO 에서 일어나는 작업들을 **하나의 트랜잭션으로 묶어 추상레벨에서 관리하게 해주는 트랜잭션 추상화가 없었다면 AOP 를 통한 선언적 트랜잭션이나 트랜잭션 전파 등은 불가능했을 것**이다.
 
 #### 트랜잭션 매니저와 트랜잭션 동기화 
+- 트랜잭션 추상화 핵심은 트랜잭션 매니저와 트랜잭션 동기화이다.
+- PlatformTransactionManager 인터페이스를 구현한 트랜잭션 매니저를 통해 **구체적인 트랜잭션 기술의 종류에 상관없이 일관된 트랜잭션 제어가 가능했다**
+```java
+public class TransactionAdvice implements MethodInterceptor { 
+    private PlatformTransactionManager transactionManager;
+
+    public void setTransactionManager(PlatformTransactionManager transactionManager){
+        this.transactionManager = transactionManager;
+    }
+
+    @Override 
+    public Object invoke(MethodInvocation invocation) throws Throwable { 
+        TransactionStatus status = this.transactionManager.getTransaction(new DefaultTransactionDefinition());
+    ...
+    }
+}
+```
+- 트랜잭션 동기화를 통해 **시작된 트랜잭션 정보를 저장소에 보관해두었다가 DAO에서 공유**할 수 있었다.
+  - 트랜잭션 전파를 위해서도 중요한 역할을 한다.
+  - **진행중인 트랜잭션이 있는지 확인, 트랜잭션 전파 속성에 따라 이에 참여할 수 있도록 만들어주는 것도 트랜잭션 동기화 기술 덕분**이다.
+
+#### 트랜잭션 매니저를 이용한 테스트용 트랜잭션 제어
+```java
+@Test
+public void transactionSync() (
+  userService.deleteAll();
+  userService.add(users.get(0));
+  userService.add(users.get(1));
+}
+```
+- UserService 의 모든 메소드에는 트랜잭션을 적용했고, 각 메소드가 모두 독립적인 트랜잭션 안에서 실행되므로 3개의 트랜잭션이 생성된다.
+- 테스트에서 각 메소드를 실행시킬 때는 기존에 진행중인 트랜잭션이 없고, 트랜잭션 전파 속성이 REQUIRED 이므로 메소드 실행 때마다 새로운 트랜잭션이 시작된다.
+- 이 3개의 트랜잭션을 하나로 통합할 수는 없을까?
+  - 3개의 메소드 모두 트랜잭션 전파 속성이 REQUIRED 이므로, 이 **메소드들이 호출되기 전에 트랜잭션이 시작되게만 한다면 가능하다**
+```java
+@Test
+public void transactionSync() (
+  DefaultTransactionDefinition txDefinition = new DefaultTransactionDefinition(); 
+  TransactionStatus txStatus = transactionManager.getTransaction(txDefinition);
+  /*
+    트랜잭션 매니저에게 트랜잭션 요청.
+    기존에 시작된 트랜잭션이 없으니 새로운 트랜잭션 시작시키고, 트랜잭션 정보 리턴.
+    동시에 만들어진 트랜잭션을 다른 곳에서도 사용할 수 있도록 동기화.
+  */
+
+  // 앞에서 만들어진 트랜잭션에 모두 참여.
+  userService.deleteAll();
+  userService.add(users.get(0));
+  userService.add(users.get(1));
+
+  transactionManager.commit(txStatus); // 앞에서 시작한 트랜잭션 커밋
+}
+```
+- 테스트코드에서 미리 트랜잭션을 시작해놓으면, 직접 호출하는 DAO 메소드도 하나의 트랜잭션으로 묶을 수 있다.
+
+#### 롤백 테스트
+- 롤백 테스트 : 테스트 내의 모든 DB 작업을 하나의 트랜잭션 안에서 동작하게 하고, 테스트가 끝나면 무조건 롤백해버리는 테스트
+- 롤백 테스트는 DB 작업이 포함된 테스트가 수행돼도 DB 에 영향을 주지 않기 때문에 장점이 많다
+  - 테스트를 진행하는 동안에 조작한 데이터를 모두 롤백하고, 테스트 시작 전 상태로 만들어주기 때문이다
+- 롤백 테스트는 여러 개발자가 하나의 공용 테스트용 DB 를 사용할 수 있게 해주며, 적절한 격리수준만 보장해주면 동시에 여러 개의 테스트가 진행돼도 상관없다
+- 테스트에서 트랜잭션을 제어할 수 있기에 얻을 수 있는 가장 큰 유익은 롤백 테스트다.
