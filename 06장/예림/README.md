@@ -2301,3 +2301,37 @@ public void transactionSync() throws InterruptedException {
   - 테스트용 데이터를 DB에 잘 준비해놓더라도 앞에서 실행된 테스트에서 DB의 데이터를 바꿔버리면 이후에 실행되는 테스트에 영향을 미칠 수 있다.
   - 이런 이유 때문에 롤백 테스트는 매우 유용하다. 롤백 테스트는 테스트를 진행하는 동안에 조작한 데이터를 모두 롤백하고 테스트를 시작하기 전 상태로 만들어주기 때문이다.
 - 테스트에서 트랜잭션을 제어할 수 있기 때문에 얻을 수 있는 가장 큰 유익이 있다면 바로 롤백 테스트다.
+
+### 6.8.3 테스트를 위한 트랜잭션 애너테이션
+- 테스트 클래스에도 `@Transactional` 애너테이션을 부여해줄 수 있다.
+- 그 외에도 스프링 컨텐스트 테스트에서 쓸 수 있는 유용한 애너테이션이 여러 개 있다.
+
+#### @Transactional
+- 물론 테스트에서 사용하는 `@Transactional`은 AOP를 위한 것은 아니다. 하지만 기본적인 동작방식과 속성은 UserService 등에 적용한 `@Transactional`과 동일하므로 이해하기 쉽고 편리하다.
+- 트랜잭션 적용 여부를 확인해보고 싶다면 트랜잭션을 읽기 전용으로 바꾸고 테스트를 실행해 예외가 발생하는지 확인해보면 된다.
+- `@Transactional`은 테스트 클래스 레벨에 부여할 수도 있다.
+
+#### @Rollback
+- 테스트용 트랜잭션은 테스트가 끝나면 자동으로 롤백된다.
+- 그런데 테스트 메서드 안에서 진행되는 작업을 하나의 트랜잭션으로 묶고 싶기는 하지만 강제 롤백을 원하지 않을 수도 있다. 트랜잭션을 커밋시켜서 테스트에서 진행한 작업을 그대로 DB에 반영하고 싶다면 `@Rollback`을 사용하면 된다.
+- `@Rollback`은 롤백 여부를 지정하는 값을 갖고 있다.
+- `@Rollback`의 기본값은 true다. 따라서 트랜잭션은 적용되지만 롤백은 원치 않는다면 `@Rollback(false)`라고 해줘야 한다.
+
+#### @TransactionConfiguration
+- `@Rollback`은 메서드 레벨에서만 적용 가능
+- 테스트 클래스의 모든 메서드에 트랜잭션을 적용하면서 모든 트랜잭션이 롤백되지 않고 커밋되게 하려면 어떻게 해야 할까?
+-  `@TransactionConfiguration`을 사용하면 롤백에 대한 공통 속성을 지정할 수 있다.
+-  디폴트 롤백 속성은 false로 해두고, 테스트 메서드 중에서 일부만 롤백을 적용하고 싶으면 메서드에 `@Rollback`을 부여해주면 된다.
+
+```java
+// 6-100. @TransactionConfiguration의 사용 예
+@Runwith(SpringJUnit4Runner.class)
+@ContextConfiguration(locations = "/test-applicationContext.xml")
+@Transactional
+@TransactionConfiguration(defaultRollback=false)
+public class UserServiceTest {
+	@Test
+	@Rollback
+	public void add() throws SQLException { ... }
+	...
+```
