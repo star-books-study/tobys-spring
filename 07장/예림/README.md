@@ -43,3 +43,26 @@ public void add(User user) {
   <property name="sqlAdd" value="insert into users(id, name, password, email, level, login, recommend) values(?,?,?,?,?,?,?)" />
   ...
 ```
+- 하지만 이 방법은 새로운 SQL이 필요할 때마다 프로퍼티를 추가하고 DI를 위한 변수와 수정자 메서드도 만들어줘야 한다는 점에서 조금 불편해 보인다.
+
+#### SQL 맵 프로퍼티 방식
+- 이번에는 SQL을 하나의 컬렉션으로 담아두는 방법을 시도해보자. 맵을 이용하면 키 값을 이용해 SQL 문장을 가져올 수 있다.
+```java
+// 7-4. 맵 타입의 SQL 정보 프로퍼티
+public class UserDaoJdbc implements UserDao {
+  ...
+  private Map<String, String> sqlMap;
+
+  public void setSqlMap(Map<String, String> sqlMap) {
+    this.sqlMap = sqlMap;
+  }
+```
+- 각 메서드는 미리 정해진 키 값을 이용해 sqlMap으로부터 SQL을 가져와 사용하도록 만든다.
+```java
+// 7-5. sqlMap을 사용하도록 수정한 add()
+public void add(User user) {
+  this.jdbcTemplate.update(
+    this.sqlMap.get("add"),
+    user.getId(), user.getName(), user.getPassword(), ... );
+}
+```
