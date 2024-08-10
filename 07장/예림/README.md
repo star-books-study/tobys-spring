@@ -131,5 +131,33 @@ public class UserDaoJdbc implements UserDao {
     this.sqlService = sqlService;
   }
 ```
+- 이제 모든 메서드에서 sqlService를 이용해 SQL을 가져오도록 수정한다.
+- SqlService는 모든 DAO에서 서비스 빈을 사용하게 만들 것이기 때문에 키 이름이 DAO 별로 중복되지 않게 해야 한다.
 
+```java
+// 7-10. sqlService를 사용하도록 수정한 메서드
+public void add(User user) {
+  this.jdbcTemplate.update(this.sqlService.getSql("userAdd"), user.getId(), user.getName(), user.getPassword(), user.getEmail(), user.getLevel().intValue(), user.getLogin(), user.getRecommend());
+}
+
+public User get(String id) {
+  return this.jdbcTemplate.queryForObject(this.sqlService.getSql("userGet"), new Object[] {id}, this.userMapper);
+}
+
+public List<User> getAll() {
+  return this.jdbcTemplate.queryForObject(this.sqlService.getSql("userGetAll"), this.userMapper);
+}
+
+public void deleteAll() {
+  this.jdbcTemplate.update(this.sqlService.getSql("userDeleteAll"));
+}
+
+public int getCount() {
+  return jdbcTemplate.queryForInt(this.sqlService.getSql("userGetCount"));
+}
+
+public void update(User user) {
+  this.jdbcTemplate.update(this.sqlService.getSql("userUpdate"), user.getName(), ...(생략));
+}
+```
 
