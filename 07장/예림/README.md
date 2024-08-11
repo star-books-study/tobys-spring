@@ -161,3 +161,27 @@ public void update(User user) {
 }
 ```
 
+#### 스프링 설정을 사용하는 단순 SQL 서비스
+
+- SqlService 인터페이스에는 어떤 기술적인 조건이나 제약사항도 담겨 있지 않다. 어떤 방법이든 상관없이 DAO가 요구하는 SQL을 돌려주기만 하면 된다.
+
+```java
+public class SimpleSqlService implements SqlService {
+
+    private final Map<String, String> sqlMap;
+
+    public SimpleSqlService(Map<String, String> sqlMap) {
+        this.sqlMap = sqlMap;
+    }
+
+    @Override
+    public String getSql(String key) throws SqlRetrievalFailureException {
+        String sql = sqlMap.get(key);
+        if (sql == null) {
+            throw new SqlRetrievalFailureException(key + "에 대한 SQL을 찾을수 없습니다");
+        }
+        return sql;
+    }
+}
+```
+- SimpleSqlService 클래스를 빈으로 등록하고 UserDao가 DI받도록 설정해준다. SQL 정보는 이 빈 프로퍼티에 map 태그를 이용하여 등록하면 된다. 
