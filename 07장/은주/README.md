@@ -116,3 +116,9 @@ public class SimpleSqlService implements SqlService {
 - 이제 UserDao를 포함한 모든 DAO는 SQL을 어디에 저장해두고 가져오는지에 대해서는 전혀 신경 쓰지 않아도 된다. **구체적인 구현 방법과 기술에 상관없이 SqlService 인터페이스 타입의 빈을 DI 받아서 필요한 SQL을 가져다 쓰기만 하면 된다.**
 - 동시에 sqlService 빈에는 DAO에 전혀 영향을 주지 않은 채로 다양한 방법으로 구현된 SqlService 타입 클래스를 적용할 수 있다. 
 - 이제 DAO의 수정 없이도 편리하고 자유롭게 SQL 서비스 구현을 발전시킬수 있다
+
+## 7.2. 인터페이스의 분리와 자기참조 빈
+### 7.2.1. XML 파일 매핑
+- 검색용 키와 SQL 문장 2가지를 담을 수 있는 간단한 XML 문서를 설계하고, 이 XML 파일에서 SQL 을 읽어뒀다가 DAO 에게 제공해주는 SQL 서비스 구현 클래스를 만들어보자
+
+#### JAXB
