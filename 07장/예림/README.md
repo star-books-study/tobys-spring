@@ -185,3 +185,34 @@ public class SimpleSqlService implements SqlService {
 }
 ```
 - SimpleSqlService 클래스를 빈으로 등록하고 UserDao가 DI받도록 설정해준다. SQL 정보는 이 빈 프로퍼티에 map 태그를 이용하여 등록하면 된다. 
+
+
+## 7.2 인터페이스의 분리와 자기참조 빈
+
+- 이제 SqlService 인터페이스의 구현 방법을 고민해보자.
+- 인터페이스로 대표되는 기능을 구현 방법과 확장 가능성에 따라 유연한 방법으로 재구성할 수 있도록 설계할 필요가 있다.
+
+### 7.2.1 XML 파일 매핑
+- `<bean>` 태그 안에 SQL을 넣는 것보다 SQL을 저장해두는 전용 포맷을 가진 독립적인 파일을 이용하는 편이 바람직하다.
+- 검색용 키와 SQL 문장 두 가지를 담을 수 있는 XML 문서를 설계해보고, XML에서 SQL을 읽어뒀다가 DAO에게 제공해주는 SQL 서비스 구현 클래스를 만들어보자.
+
+#### JAXB
+- XML에 담긴 정보를 파일에서 읽어오는 방법 중 하나인 JAXB는 JDK 6라면 `java.xml.bind` 패키지 안에서 구현 클래스를 찾을 수 있다.
+- DOM과 비교했을 때 JAXB의 장점은 XML 문서 정보를 거의 동일한 구조의 오브젝트로 직접 매핑해준다는 것이다. ➡️ XML 정보를 오브젝트처럼 다룰 수 있어 편리하다.
+- JAXB는 XML 문서의 구조를 정의한 스키마를 이용해서 매핑할 오브젝트의 클래스까지 자동으로 만들어주는 컴파일러도 제공해준다.
+- 스키마 컴파일러를 통해 자동생성된 오브젝트에는 매핑정보가 **애너테이션**으로 담겨있다.
+
+<img width="615" alt="스크린샷 2024-08-12 오전 10 19 00" src="https://github.com/user-attachments/assets/f4dc4bb3-a9f9-4844-a671-a4f9fa7a156c">
+
+#### SQL 맵을 위한 스키마 작성과 컴파일
+```xml
+// SQL 맵 XML 문서
+<sqlmap>
+  <sql key="userAdd">insert into users(...) ...</sql>
+  <sql key="userGet">select * from users ...</sql>
+  ...
+</sqlmap>
+```
+이 XML 문서의 구조를 정의하는 스키마를 만들어보자.
+```xml
+// SQL 맵 문서에 대한 스키마
