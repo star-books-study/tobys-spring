@@ -216,3 +216,45 @@ public class SimpleSqlService implements SqlService {
 이 XML 문서의 구조를 정의하는 스키마를 만들어보자.
 ```xml
 // SQL 맵 문서에 대한 스키마
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmls="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.epril.com/sqlmap" xmls:tns="http://www.epril.com/sqlmap" elementFormDefault="qualified">
+
+  <element name="sqlmap"> <!-- <sqlmap> 엘리멘트를 정의한다 -->
+    <complexType>
+      <sequence>
+        <element name="sql" maxOccurs="unbounded" type="tns:sqlType" />
+      </sequence>
+    </complexType>
+  </element>
+  <complexType name="sqlType"> <!-- <sql>에 대한 정의를 시작한다. -->
+    <simpleContent>
+      <extension base="string">
+        <attribute name="key" use="required" type="string" /> <!-- 검색을 위한 키 값은 <sql>의 key 애트리뷰트에 넣는다. 반드시 입력해야 하는 필수값이다.
+      </extension>
+    </simpleContent>
+  </complexType>
+</schema>
+```
+- 다음 명령을 사용해 컴파일한다.
+```
+xjc -p springbook.user.sqlservice.jaxb.sqlmap.xsd -d src
+```
+- src는 생성된 파일이 저장될 위치이다.
+- 명령을 실행하면 두 개의 바인딩용 자바 클래스와 팩토리 클래스가 만들어진다. (SqlType.java, Sqlmap.java)
+
+<img width="536" alt="스크린샷 2024-08-13 오후 4 40 23" src="https://github.com/user-attachments/assets/af4fbf74-7ce7-4c47-ba5a-c28d6caa3f9b">
+
+
+#### 언마샬링
+- 생성된 매핑 클래스 적용 전 먼저 JAXB API의 사용법을 익힐 수 있도록 간단한 학습 테스트를 만들어보자.
+```xml
+// 7-16. 테스트용 SQL 맵 XML 문서
+<?xml version="1.0" encoding="UTF-8"?>
+<schema xmls="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.epril.com/sqlmap" xmls:tns="http://www.epril.com/sqlmap" elementFormDefault="qualified">
+
+  <sql key="add">insert</sql>
+  <sql key="get">select</sql>
+  <sql key="delete">delete</sql>
+</sqlmap>
+```
+
