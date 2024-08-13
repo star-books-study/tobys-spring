@@ -122,3 +122,5 @@ public class SimpleSqlService implements SqlService {
 - 검색용 키와 SQL 문장 2가지를 담을 수 있는 간단한 XML 문서를 설계하고, 이 XML 파일에서 SQL 을 읽어뒀다가 DAO 에게 제공해주는 SQL 서비스 구현 클래스를 만들어보자
 
 #### JAXB
+- XML 에 담긴 정보를 파일에서 읽어오는 방법 중 하나로 JAXB (Java Architecture for XML Binding) 가 있다
+- JAXB 의 장점은 XML 문서 정보를 거의 동일한 구조의 오브젝트로 직접 매핑해준다는 것이다.
