@@ -245,16 +245,20 @@ xjc -p springbook.user.sqlservice.jaxb.sqlmap.xsd -d src
 <img width="536" alt="스크린샷 2024-08-13 오후 4 40 23" src="https://github.com/user-attachments/assets/af4fbf74-7ce7-4c47-ba5a-c28d6caa3f9b">
 
 
-#### 언마샬링
-- 생성된 매핑 클래스 적용 전 먼저 JAXB API의 사용법을 익힐 수 있도록 간단한 학습 테스트를 만들어보자.
-```xml
-// 7-16. 테스트용 SQL 맵 XML 문서
-<?xml version="1.0" encoding="UTF-8"?>
-<schema xmls="http://www.w3.org/2001/XMLSchema" targetNamespace="http://www.epril.com/sqlmap" xmls:tns="http://www.epril.com/sqlmap" elementFormDefault="qualified">
+... (생략) ...
 
-  <sql key="add">insert</sql>
-  <sql key="get">select</sql>
-  <sql key="delete">delete</sql>
-</sqlmap>
-```
+
+## 7.6 스프링 3.1의 DI
+- 자바 언어와 관련 기술이 다양한 변화를 겪는 동안 스프링도 꾸준히 발전하고 변신해왔다.
+- 스프링이 많은 변화를 겪은 것은 사실이지만 스프링이 기본적으로 지지하는 객체지향 언어인 자바의 특징과 장점을 극대화하는 프로그래밍 스타일과 이를 지원하는 도구로서의 스프링 정체성은 변하지 않았다.
+- 놀랍게도 스프링은 1.0부터 3.1까지 거의 완벽에 가까울 만큼 구 버전 호환성을 유지하고 있다.
+- 스프링을 이용한 애플리케이션 코드가 DI 패턴을 이용해서 안전하게 발전하고 확장할 수 있는 것처럼 스프링 프레임워크 자체도 DI 원칙을 충실하게 따라서 만들어졌기 때문에 기존 설계와 코드에 영향을 주지 않고도 꾸준히 새로운 기능을 추가하고 확장해나가는 일이 가능했다.
+
+#### 자바 언어의 변화와 스프링
+- DI가 적용된 코드를 작성할 때 사용하는 핵심 도구인 **자바 언어**에는 그간 적지 않은 변화가 있었다.
+- 이런 변화들이 스프링의 사용 방식에도 여러 영향을 줬다.
+- 대표적인 두 가지 변화를 살펴보자.
+
+- **애너테이션의 메타정보 활용**
+  
 
