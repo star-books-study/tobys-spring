@@ -124,3 +124,6 @@ public class SimpleSqlService implements SqlService {
 #### JAXB
 - XML 에 담긴 정보를 파일에서 읽어오는 방법 중 하나로 JAXB (Java Architecture for XML Binding) 가 있다
 - JAXB 의 장점은 XML 문서 정보를 거의 동일한 구조의 오브젝트로 직접 매핑해준다는 것이다.
+
+## 7.6. 스프링 3.1의 DI
+- 스프링 프레임워크 자체도 DI 원칙을 충실히 따라 만들어졌기에 기존 설계와 코드에 영향없이 꾸준히 새로운 기능을 추가하고 확장하는 것이 가능했다 
