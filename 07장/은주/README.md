@@ -148,3 +148,11 @@ public class SimpleSqlService implements SqlService {
 #### <context:annotation-config /> 제거
 - `XML 에 담긴 DI 정보를 이용하는 스프링 컨테이너`를 사용하는 경우, **@PostConstruct 와 같은 애노테이션 기능이 필요하면 반드시 <context:annotation-config /> 를 포함시켜 필요한 빈 후처리기가 등록되게 만들어야 한다.**
 - 반면 `@Configuration 이 붙은 설정 클래스를 사용하는 컨테이너`가 사용되면 **컨테이너가 직접 @PostConstruct 애노테이션을 처리하는 빈 후처리기를 등록**해주기에 <context:annotation-config /> 가 필요하지 않다.
+
+#### <bean> 의 전환
+- <bean> 으로 정의된 DI 정보는 @Bean 이 붙은 메소드와 거의 1:1 로 매핑된다
+- 빈의 의존관계가 인터페이스를 통해 안전하게 맺어지도록 빈의 리턴값은 `인터페이스` 로 하는 것이 좋다
+- @Bean 메소드 내부에서는 빈의 구현 클래스에 맞는 프로퍼티 값 주입이 필요한데, **프로퍼티는 구현 클래스에 의존적**인 경우가 대부분이다.
+- XML 과 자바 클래스를 동시에 DI 정보로 사용하는 경우 자바 코드로 정의한 빈은 XML 에서 <property> 를 이용해 참조할 수 있다
+- 자바 코드에서 XML 에서 정의한 빈을 참조하려면 @Autowired 를 붙여서 XML 에 정의된 빈을 컨테이너가 주입해주게 해야한다.
+- @Resource 는 @Autowired 와 유사하게 필드에 빈 주입받을 때 사용하는데, **@Autowired 는 필드 타입 기준으로 빈을 찾고, @Resource 는 필드 이름 기준**으로 한다
