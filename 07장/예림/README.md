@@ -313,3 +313,8 @@ public class UserDaoTest {
 public class TestApplicationContext {
 }
 ```
+
+```java
+// TestApplicationContext를 테스트 컨텍스트로 사용하도록 변경한 UserDaoTest
+@RunWith(SpringJUnit4ClassRunnder.class)
+
