@@ -299,7 +299,7 @@ xjc -p springbook.user.sqlservice.jaxb.sqlmap.xsd -d src
 #### 테스트 컨텍스트의 변경
 - UserDaoTest와 UserServiceTest에는 다음과 같이 XML 위치를 지정하는 코드가 들어가 있다.
 ```java
-// 8-82. XML 파일을 사용하는 UserDaoTest
+// 7-82. XML 파일을 사용하는 UserDaoTest
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations="/test-applicatioinContext.xml")
 public class UserDaoTest {
@@ -315,6 +315,66 @@ public class TestApplicationContext {
 ```
 
 ```java
-// TestApplicationContext를 테스트 컨텍스트로 사용하도록 변경한 UserDaoTest
+// 7-84. TestApplicationContext를 테스트 컨텍스트로 사용하도록 변경한 UserDaoTest
 @RunWith(SpringJUnit4ClassRunnder.class)
+@ContextConfiguration(classes=TestApplicationContext.class)
+public class UserDaoTest {
+```
+
+- XML에 있던 모든 빈 설정 정보를 TestApplicationContext에 담는 대신 XML의 도움을 받는 게 좋겠다.
+- `@ImportResource` 애너테이션 사용
+```java
+// 7-85. TestApplicationContext를 테스트 컨텍스트로 사용하도록 변경한 UserDaoTest
+@Configuration
+@ImportResource("/test-applicationContext.xml")
+public class TestApplicationContext {
+}
+```
+
+#### <context:annotation-config /> 제거
+- `<context:annotation-config />`은 `@PostConstruct`를 붙인 메서드가 빈이 초기화된 후에 자동으로 실행되도록 사용했다.
+- @Configuration이 붙은 설정 클래스를 사용하는 컨테이너가 사용되면 더 이상 필요 없다. 컨테이너가 직접 `@PostConstruct` 애너테이션을 처리하는 빈 후처리기를 등록해주기 때문이다.
+
+#### <baan>의 전환
+- @Bean 이 붙은 public 메서드 이름은 <bean>의 id와 같다.
+- 리턴값은 구현 클래스보다 인터페이스로 해야 DI에 따라 구현체를 자유롭게 변경할 수 있다.
+- 그런데 메서드 내부에서는 빈의 구현 클래스에 맞는 프로퍼티 값 주입이 필요하다.
+```xml
+<bean id="dataSource" class="org.springboot.jdbc.datasource.SimpleDriverDataSource">
+    <property name="driverClass" value="com.mysql.jdbc.mysql" />
+    ...
+</bean>
+```
+
+```java
+@Bean
+public DataSource dataSource() {
+    SimpleDriverDataSource dataSource = new SimpleDriverDataSource ();
+
+    dataSource.setDriver(Driver.class);
+    dataSource.setUrl("jdbc:mysql://localhost/springbook?characterEncoding=UTF-8");
+    dataSource.setUsername("spring");
+    dataSource.setPassword("book");
+    return dataSource;
+}
+```
+- XML로 정의된 transcationManager 빈을 TestApplicationContext 내의 메소드로 전환하면 다음과 같다.
+```xml
+<bean id="transactionManager" class="org.springboot.jdbc.datasource.DataSourceTransactionManager">
+    <property name="dataSource" ref="dataSource" />
+</bean>
+```
+
+```java
+@Bean 
+    public PlatformTranscationManager transcationManager() {
+        DataSourceTransactionManager tm = new DataSourceTransactionManager();
+        tm.setDataSource(dataSource());
+        return tm;
+    }
+```
+
+#### 전용 태그 전환
+- Spring 3.1은 xml에서 자주 사용되는 전용 태그를 `@Enable`로 시작하는 애노테이션으로 대체할 수 있도록 애노테이션을 제공한다.
+- `<tx:annotation-driven />`은 `@EnableTransactionManagement`로 대체할 수 있다.
 
