@@ -156,3 +156,7 @@ public class SimpleSqlService implements SqlService {
 - XML 과 자바 클래스를 동시에 DI 정보로 사용하는 경우 자바 코드로 정의한 빈은 XML 에서 <property> 를 이용해 참조할 수 있다
 - 자바 코드에서 XML 에서 정의한 빈을 참조하려면 @Autowired 를 붙여서 XML 에 정의된 빈을 컨테이너가 주입해주게 해야한다.
 - @Resource 는 @Autowired 와 유사하게 필드에 빈 주입받을 때 사용하는데, **@Autowired 는 필드 타입 기준으로 빈을 찾고, @Resource 는 필드 이름 기준**으로 한다
+
+#### 전용 태그 전환
+- <tx: annotation-driven /> 과 같이 특별한 목적을 위해 만들어진, 내부적으로 복잡한 로우 레벨의 빈을 등록해주는 전용 태그에 대응되는 애노테이션을 제공해준다 @EnableTransactionManagement
+- 스프링 3.1 은 **XML에서 자주 사용되는 전용 태그를 @Enable 로 시작하는 애노테이션으로 대체할 수 있게** 다양한 애노테이션을 제공한다
