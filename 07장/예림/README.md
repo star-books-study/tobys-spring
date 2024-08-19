@@ -378,3 +378,43 @@ public DataSource dataSource() {
 - Spring 3.1은 xml에서 자주 사용되는 전용 태그를 `@Enable`로 시작하는 애노테이션으로 대체할 수 있도록 애노테이션을 제공한다.
 - `<tx:annotation-driven />`은 `@EnableTransactionManagement`로 대체할 수 있다.
 
+
+### 7.6.2 빈 스캐닝과 자동 와이어링
+
+#### @Autowired를 이용한 자동와이어링
+- 빈으로 사용되는 UserServiceImpl이나 UserDaoJdbc 같은 클래스에서는 `@Autowired`를 사용할 수 없을까?
+- 물론 사용할 수 있다.
+  ![image](https://github.com/user-attachments/assets/387badbc-c878-4aa1-9cdc-1d1d31a4f7ac)
+- `@Autowired`는 자동와이어링 기법을 이용해서 조건에 맞는 빈을 찾아 자동으로 수정자 메서드나 필드에 넣어준다.
+  - 자동와이어링을 이용하면 컨테이너가 이름이나 타입을 기준으로 주입된 빈을 찾아준다.
+    ➡️ 자바 코드나 XML의 양을 대폭 줄일 수 있다.
+  - 주입할 빈을 찾기 어려운 경우 직접 프로퍼티에 주입될 대상을 지정하는 방법을 병행하면 된다.
+```java
+// 7-100. dataSource 수정자에 @Autowired 적용
+public class UserDaoJdbc implements UserDao {
+
+  @Autowired
+  public void setDataSource(DataSource dataSource) {
+    this.jdbcTemplate = new JdbcTemplate(dataSource);
+  }
+```
+```java
+// 7-101. sqlService 필드에 @Autowired 적용
+public class UserDaoJdbc implements UserDao {
+  ...
+
+  @Autowired
+  private SqlService sqlService;
+
+  public void setSqlService(SqlService sqlService) {
+    this.sqlService = sqlService;
+  }
+```
+- 원래 자바에서 private 필드에는 클래스 외부에서 값을 넣을 수 없게 되어 있지만 스프링은 리플렉션 API를 이용해 제약 조건을 우회해서 값을 넣어준다.
+- 필드에 직접 값을 넣을 수 있다면 수정자 멤서드는 없어도 된다.
+- 반면에 setDataSource() 수정자 메서드를 없애고 필드에 `@Autowired`를 적용하는 건 불가능
+    - 여타 수정자 메서드처럼 주어진 오브젝트를 그대로 필드에 저장하는 대신 JdbcTemplate을 생성해서 저장해주기 때문
+- 단순히 필드에 값을 수정하는 수정자 메서드라도 `@Autowired`를 필드에 직접 부여했다고 메서드를 생략하면 안되는 경우가 있으니 주의하자.
+- `@Autowired`와 같은 자동와이어링은 편리하지만 빈 설정 정보를 보고 의존관계를 한눈에 파악하기 힘들다는 단점도 있다.
+
+#### @Component를 이용한 자동 빈 등록
