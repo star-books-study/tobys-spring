@@ -418,3 +418,33 @@ public class UserDaoJdbc implements UserDao {
 - `@Autowired`와 같은 자동와이어링은 편리하지만 빈 설정 정보를 보고 의존관계를 한눈에 파악하기 힘들다는 단점도 있다.
 
 #### @Component를 이용한 자동 빈 등록
+- 클래스에 부여
+- `@Component`가 붙은 클래스는 빈 스캐너를 통해 자동으로 빈으로 등록된다.
+- userDao() 메서드를 지우고, `@Autowired`를 통해 userDao 빈을 참조하도록 수정하자.
+  - 자동 등록이든 XML을 통한 등록이든, 아무튼 스프링 컨테이너에 등록된 빈을 가져와 사용할 때는 `@Autowired`로 사용하면 된다.
+```java
+// 7-103. userDao() 메서드 제거
+@Autowired UserDao userDao;
+
+@Bean
+public UserService userService() {
+  UserServiceImpl service = new UserServiceImpl();
+  service.setUserDao(this.userDao);
+  service.setMailSender(mailSender());
+  return service;
+}
+
+@Bean
+public UserService testUserService() {
+  ...
+  testUserService.setUserDa(this.userDao);
+  ...
+}
+```
+- 이 상태로 테스트를 돌리면 실패 (UserDao 빈이 등록될 방법이 없다)
+- 자동 빈 등록 방식을 적용해 테스트를 성공으로 다시 만들어보자.
+```java
+// 7-104. @Component 적용
+@Component
+public class UserDaoJdbc implements UserDao {
+```
