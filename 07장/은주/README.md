@@ -175,3 +175,4 @@ public class SimpleSqlService implements SqlService {
 - @Component 애노테이션이 달린 클래스를 자동으로 찾아 빈을 등록해주게 하려면 빈 스캔 기능을 사용하겠다는 애노테이션 정의가 필요하다.
   - 빈 자동등록이 컨테이너가 디폴트로 제공하는 기능은 아니기 때문
   - @ComponentScan 애노테이션에 basePackages 엘리먼트로 @Component 가 붙은 클래스를 스캔할 기준 패키지를 지정한다
+- 애노테이션 포인트컷을 이용하면 패키지나 클래스 이름 패턴 대신 애노테이션을 기준으로 어드바이스 적용 대상을 선별할 수 있다
