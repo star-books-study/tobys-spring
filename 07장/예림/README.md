@@ -382,13 +382,10 @@ public DataSource dataSource() {
 ### 7.6.2 빈 스캐닝과 자동 와이어링
 
 #### @Autowired를 이용한 자동와이어링
-- 빈으로 사용되는 UserServiceImpl이나 UserDaoJdbc 같은 클래스에서는 `@Autowired`를 사용할 수 없을까?
-- 물론 사용할 수 있다.
+- 빈으로 사용되는 UserServiceImpl이나 UserDaoJdbc 같은 클래스에서는 `@Autowired`를 사용할 수 없을까? 물론 사용할 수 있다.
   ![image](https://github.com/user-attachments/assets/387badbc-c878-4aa1-9cdc-1d1d31a4f7ac)
-- `@Autowired`는 자동와이어링 기법을 이용해서 조건에 맞는 빈을 찾아 자동으로 수정자 메서드나 필드에 넣어준다.
-  - 자동와이어링을 이용하면 컨테이너가 이름이나 타입을 기준으로 주입된 빈을 찾아준다.
-    ➡️ 자바 코드나 XML의 양을 대폭 줄일 수 있다.
-  - 주입할 빈을 찾기 어려운 경우 직접 프로퍼티에 주입될 대상을 지정하는 방법을 병행하면 된다.
+- 자동와이어링을 사용하면 컨테이너가 이름 / 타입 기준으로 주입될 빈을 찾아준다. ➡️ 자바 코드나 XML의 양을 대폭 줄일 수 있다.
+- setter에 `@Autowired`를 붙이면 파라미터 타입을 보고 주입 가능한 타입의 빈을 모두 찾는다. 주입 가능한 빈이 1개일 땐 스프링이 setter를 호출해서 넣고, 2개 이상일 때는 그 중에서 프로퍼티와 동일한 이름의 빈을 찾고 없으면 에러
 ```java
 // 7-100. dataSource 수정자에 @Autowired 적용
 public class UserDaoJdbc implements UserDao {
@@ -398,6 +395,8 @@ public class UserDaoJdbc implements UserDao {
     this.jdbcTemplate = new JdbcTemplate(dataSource);
   }
 ```
+- setter에서 필드 그대로 넣는다면 필드에 직접 @Autowired 를 적용할 수 있다.
+  - 위 예시코드의 경우에는 필드에 직접 하면 안된다.(setter에 JdbcTemplate을 생성하는 코드가 있으므로 필드로 대체가 되지 않는다.)
 ```java
 // 7-101. sqlService 필드에 @Autowired 적용
 public class UserDaoJdbc implements UserDao {
@@ -420,31 +419,27 @@ public class UserDaoJdbc implements UserDao {
 #### @Component를 이용한 자동 빈 등록
 - 클래스에 부여
 - `@Component`가 붙은 클래스는 빈 스캐너를 통해 자동으로 빈으로 등록된다.
-- userDao() 메서드를 지우고, `@Autowired`를 통해 userDao 빈을 참조하도록 수정하자.
-  - 자동 등록이든 XML을 통한 등록이든, 아무튼 스프링 컨테이너에 등록된 빈을 가져와 사용할 때는 `@Autowired`로 사용하면 된다.
-```java
-// 7-103. userDao() 메서드 제거
-@Autowired UserDao userDao;
+- 스캔에 사용되는 애너테이션은 `@ComponentScan`이고 basePackage를 기준으로 한다.
+  - 프로젝트 내의 모든 클래스패스를 다 뒤져서 @Component 애너테이션이 달린 클래스를 찾는 것은 부담되는 작업
+  - 특정 패키지 아래서만 찾도록 기준이 되는 패키지를 지정할 때 사용
+  ```
+  @ComponentScan(basePackages="springbook.user")
+  ```
+  - basePackage 엘리먼트는 기준 패키지를 설정할 때 사용
+- `@Component`로 추가되는 빈의 id는 별도 지정 없으면 클래스 이름의 첫 글자를 소문자로 바꿔서 사용
+  - 별도 지정은 `@Component("userDao")`와 같이 한다.
 
-@Bean
-public UserService userService() {
-  UserServiceImpl service = new UserServiceImpl();
-  service.setUserDao(this.userDao);
-  service.setMailSender(mailSender());
-  return service;
-}
-
-@Bean
-public UserService testUserService() {
-  ...
-  testUserService.setUserDa(this.userDao);
-  ...
-}
-```
-- 이 상태로 테스트를 돌리면 실패 (UserDao 빈이 등록될 방법이 없다)
-- 자동 빈 등록 방식을 적용해 테스트를 성공으로 다시 만들어보자.
+#### 메타 애너테이션
+- 애너테이션의 정의에 부여된 애너테이션을 의미
+- 빈 스캔을 통해 자동 등록 대상으로 인식하게 하려면 `@Component`을 붙여주면 된다.
 ```java
-// 7-104. @Component 적용
 @Component
-public class UserDaoJdbc implements UserDao {
+public @interface SnsConnector { // annotation은 @interface 키워드로 정의
+  ...
+}
 ```
+- bean 스캔 검색 대상 + 부가적인 용도의 마커로 사용하기 위한 `@Repository`(Dao기능 제공 클래스), `@Service`(비즈니스 로직을 담은 빈) 와 같은 빈 자동등록용 애노테이션이 사용된다.
+
+### 7.6.3 컨텍스트 분리와 @import
+
+
