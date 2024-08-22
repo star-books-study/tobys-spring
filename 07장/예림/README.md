@@ -441,5 +441,21 @@ public @interface SnsConnector { // annotation은 @interface 키워드로 정의
 - bean 스캔 검색 대상 + 부가적인 용도의 마커로 사용하기 위한 `@Repository`(Dao기능 제공 클래스), `@Service`(비즈니스 로직을 담은 빈) 와 같은 빈 자동등록용 애노테이션이 사용된다.
 
 ### 7.6.3 컨텍스트 분리와 @import
+- 이번에는 성격이 다른 DI 정보를 분리해보자.
+#### 테스트용 컨텍스트 방법
+- 테스트용 DI 정보는 분리하자.
+- **DI 설정 정보 분리하는 방법은 DI 설정 클래스를 추가하고 관련 애너테이션, 필드, 메서드를 옮기면 된다.**
+<img width="654" alt="스크린샷 2024-08-22 오후 9 01 47" src="https://github.com/user-attachments/assets/96c2c8df-5b49-487a-aa38-0c8a12b594ef">
+- 그리고 DI 설정 클래스에는 @Configuration을 붙여준다.
+- userDao, mailSender 프로퍼티는 자동와이어링 대상이므로 다음과 같이 간단하게 바꿀 수 있다.
+<img width="679" alt="스크린샷 2024-08-22 오후 9 03 36" src="https://github.com/user-attachments/assets/e367eaf0-53c1-4643-9fc6-8e2ca78a3ff0">
+- 테스트용 컨텍스트를 만들 때 이제는 두 개의 클래스가 필요하므로 다음과 같이 테스트 컨텍스트의 DI 설정 클래스 정보를 수정할 수 있다.
+<img width="643" alt="스크린샷 2024-08-22 오후 9 06 21" src="https://github.com/user-attachments/assets/8bb9f839-4421-46c7-8014-9ded897094ba">
+
+#### @Import
+- 자바 클래스로 된 설정 정보를 가져올 때 사용한다.
+```java
+@Import(SqlServiceContext.class)
+```
 
 
