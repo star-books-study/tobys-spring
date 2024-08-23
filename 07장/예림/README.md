@@ -453,9 +453,25 @@ public @interface SnsConnector { // annotation은 @interface 키워드로 정의
 <img width="643" alt="스크린샷 2024-08-22 오후 9 06 21" src="https://github.com/user-attachments/assets/8bb9f839-4421-46c7-8014-9ded897094ba">
 
 #### @Import
-- 자바 클래스로 된 설정 정보를 가져올 때 사용한다.
+- SQL 서비스용 빈도 독립적인 모듈로 취급하는 게 나아 보인다.
+  - 다른 애플리케이션에서도 사용 가능
+- `@Configuration` 클래스를 하나 더 만들자.
 ```java
+@Configuration
+public class SqlServiceContext {
+  ...
+}
+```
+- DI 설정 정보를 담은 클래스가 세 개가 됐다(두 개는 애플리케이션 핵심 빈 정보, 한 개는 테스트) 
+- `@ContextConfiguration`의 `classes` 내용을 수정할 필요 없이 `@Import`를 사용하자.
+- `@Import` : 자바 클래스로 된 설정 정보를 가져올 때 사용한다.
+```java
+// AppContext가 메인 설정 정보, SqlServiceContext는 보조 설정 정보로 사용
 @Import(SqlServiceContext.class)
+public class AppContext {
 ```
 
+### 7.6.4 프로파일
+- 지금까지는 DummyMailSender라는 테스트용 클래스를 만들어 사용했지만 운영 시스템에서는 실제 동작하는 메일 서버를 통해 메일을 발송하는 기능이 있는 메일 발송 서비스 빈이 필요하다.
+- 
 
