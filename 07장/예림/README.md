@@ -473,5 +473,33 @@ public class AppContext {
 
 ### 7.6.4 프로파일
 - 지금까지는 DummyMailSender라는 테스트용 클래스를 만들어 사용했지만 운영 시스템에서는 실제 동작하는 메일 서버를 통해 메일을 발송하는 기능이 있는 메일 발송 서비스 빈이 필요하다.
-- 
+- AppContext에 실제 애플리케이션이 동작될 때 사용되는 MailSender 타입 빈 설정을 넣어주면 테스트용과 운영용 mailSender 빈이 테스트에 사용되는 문제가 발생한다.
+- mailSender 빈처럼 양쪽 모두 필요하면서 빈의 내용이 달라져야 하는 경우에는 빈 설정정보 작성이 곤란해진다.
+- 이 문제를 해결하려면 **운영환경에는 반드시 필요하지만 테스트 실행 중에는 배제되어야 하는 빈 설정을 별도의 설정 클래스를 만들어 따로 관리할 필요가 있다.
+  ➡️ ProductAppContext라는 새로운 클래스 생성 후 운영환경에서는 AppContext와 ProductAppContext가 DI 정보로 사용되게 설정
 
+<img width="601" alt="스크린샷 2024-08-24 오후 4 57 55" src="https://github.com/user-attachments/assets/85f86c62-d90b-450b-9664-3daf7702457f">
+
+- 그러나 이런 식으로 설정 파일이 여러 개로 쪼개지고 몇 개를 선택해서 동작하는 구성은 번거롭다.
+
+#### @Profile과 @ActiveProfiles
+- 실행환경에 따라 빈 구성이 달라지는 내용을 프로파일로 정의해서 만들어두고, 실행 시점에 어떤 프로파일의 빈 설정을 사용할지 지정하자.
+- 프로파일을 적용하면 하나의 설정 클래스만 가지고 환경에 따라 다른 빈 설정 조합을 만들어낼 수 있다.
+- 프로파일은 설정 클래스 단위로 지정한다. 다음과 같이 @Profile 애너테이션을 클래스 레벨에 부여하고 프로파일 일므을 넣어주면 된다.
+```java
+@Configuration
+@Profile("test")
+public class TestAppContext {
+```
+>  ProductionAppContext는 production 프로파일 지정
+- 이제 TestAppContext는 test 프로파일의 빈 설정 정보를 담은 클래스가 됐다.
+- 프로파일이 지정되어 있지 않은 빈 설정은 default 프로파일로 취급
+- 프로파일을 적용하면 모든 설정 클래스를 부담 없이 메인 설정 클래스에서 @Import해도 된다는 장점이 있다.
+
+
+```java
+@Configuration
+...
+@Import({SqlServiceContext.class, TestAppContext.class, ProductionContext.class})
+public class AppContext {
+```
