@@ -485,7 +485,7 @@ public class AppContext {
 #### @Profile과 @ActiveProfiles
 - 실행환경에 따라 빈 구성이 달라지는 내용을 프로파일로 정의해서 만들어두고, 실행 시점에 어떤 프로파일의 빈 설정을 사용할지 지정하자.
 - 프로파일을 적용하면 하나의 설정 클래스만 가지고 환경에 따라 다른 빈 설정 조합을 만들어낼 수 있다.
-- 프로파일은 설정 클래스 단위로 지정한다. 다음과 같이 @Profile 애너테이션을 클래스 레벨에 부여하고 프로파일 일므을 넣어주면 된다.
+- 프로파일은 설정 클래스 단위로 지정한다. 다음과 같이 @Profile 애너테이션을 클래스 레벨에 부여하고 프로파일 이름을 넣어주면 된다.
 ```java
 @Configuration
 @Profile("test")
@@ -503,3 +503,81 @@ public class TestAppContext {
 @Import({SqlServiceContext.class, TestAppContext.class, ProductionContext.class})
 public class AppContext {
 ```
+- 그러나 `@Profile`이 붙은 설정 클래스는 @Import로 가져오든 `@ContextConfiguration`에 직접 명시하든 상관 없이 현재 컨테이너의 활성 프로파일 목록에 자신이 프로파일 이름이 들어 있지 않으면 무시된다.
+  - 활성 프로파일 : 스프링 컨테이너를 실행할 때 추가로 지정해주는 속성
+- 테스트가 실행될 때 활성 프로파일로 test 프로파일을 지정하려면 `@ActiveProfiles`를 사용하면 된다.
+#### 컨테이너의 빈 등록 정보 확인
+- 스프링 컨테이너는 모두 `BeanFactory`라는 인터페이스를 구현하고 있다.
+- 대부분은 `DefaultListableBeanFactory`에서 관리 된다.
+
+```java
+@Autowired
+DefaultListableBeanFactory bf;
+
+public void beans() {
+  for(String n : bf.getBeanDefinitionNames()) {
+    System.out.println("bf.getBean(n).getClass().getName()");
+  }
+}
+```
+
+- 테스트를 실행해보면 테스트 컨텍스트에 등록된 빈 이름과 빈의 클래스를 모두 얻을 수 있다.
+
+#### 중첩 클래스를 이용한 프로파일 적용
+- 프로파일마다 빈 구성이나 구현 클래스에 어떤 차이가 있는지 한눈에 비교하기 불편할 수 있다.
+- 이번에는 프로파일에 따라 분리했던 설정 정보를 하나의 파일로 모아보자. (스태틱 중첩 클래스 이용)
+```java
+@Configuration
+...
+@Import({SqlServiceContext.class, TestAppContext.class, ProductionContext.class})
+public class AppContext {
+
+  @Bean
+  public DataSource dataSource() {
+    ...
+  }
+
+  @Bean
+  public PlatformTransactionManager transactionManager() {
+    ...
+  }
+
+  @Configuration
+  @Profile("production")
+  public static class ProductionAppContext {
+    ...
+  }
+
+  @Configuration
+  @Profile("test")
+  public static class TestAppContext {
+    ...
+  }
+}
+```
+
+### 7.6.5 프로퍼티 소스
+- 적어도 DB 연결 정보는 환경에 따라서 다르게 설정될 수 있어야 함 ➡️ 빌드 작업이 따로 필요하는 XML이나 프로퍼티 파일 같은 텍스트 파일에 저장하자.
+#### @PropertySource
+- 프로퍼티 파일의 확장자는 보통 properties이고, 내부에 키=값 형태로 프로퍼티를 정의
+- `@PropertySource`로 프로퍼티 소스를 등록할 수 있다.
+```java
+...
+@PropertySource("/database.properties")
+public class AppContext {
+```
+- `@PropertySource`로 등록한 리소스로부터 가져오는 프로퍼티 값은 컨테이너가 관리하는 Environment 타입의 환경 오브젝트에 저장된다.
+- Environment 오브젝트의 getProperty() 메서드를 이용하면 프로퍼티 값을 가져올 수 있다.
+```java
+@Autowired Environment env;
+
+@Bean
+public DataSource dataSource() {
+  ...
+  (생략) ... env.getProperty("db.driverClass");
+}
+```
+#### PropertySourcesPlaceholderConfigurer
+- `@Value`를 이용하여 `${프로퍼티 속성}`으로 주입 가능
+<img width="634" alt="스크린샷 2024-08-25 오후 10 56 54" src="https://github.com/user-attachments/assets/078f39ec-3ba0-4a6a-9605-6c521ca45397">
+
