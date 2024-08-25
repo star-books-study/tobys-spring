@@ -187,3 +187,116 @@ public class SimpleSqlService implements SqlService {
         ...
     }
     ```
+- @Autowired 는 **타입 기준**으로 적용할 빈을 찾고, 같은 타입의 빈이 2개 이상 발견되면 **이름을 기준으로** 다시 최종 후보를 찾는다.
+  - 하지만 @Component 는 클래스 이름을 따라서 빈 아이디가 결정된다.
+
+### 7.6.3. 컨텍스트 분리와 @Import
+#### 테스트용 컨텍스트 분리
+- 테스트용으로 특별히 만든 빈은 설정 정보에 내용이 드러나 있는 편이 좋으므로 @Component 를 붙여서 자동 빈 스캔이 일어나지 않도록 했다.
+- 하나 이상의 설정 클래스가 스프링 테스트에서 사용되게 하려면 @ContextConfiguration(classes={}) 에 클래스 하나 이상을 지정하면 된다.
+  
+#### @Import
+- 테스트용 설정 정보는 애플리케이션 핵심 설정 정보와 깔끔히 분리되는 편이 낫지만, SQL 서비스와 관련된 빈 설정은 파일을 구분했더라도 애플리케이션 설정정보 중심이 되는 AppContext 와 긴밀하게 연결하는 게 좋다
+- AppContext 가 메인 설정 정보가 되고, SqlServiceContext 는 AppContext 에 포함되는 보조 설정 정보로 사용하는 것이다.
+```java
+@Configuration
+@EnableTransactionManagement
+@ComponentScan(basePackages="springbook.user")
+@Import(SqlServiceContext.class) 
+public class AppContext {
+```
+### 7.6.4. 프로파일
+- 같은 타입이면서 아이디가 같은 2개의 빈이 있으면 스프링이 빈 정보를 읽는 순서에 따라 **뒤의 빈 설정이 앞에서 발견된 빈 설정에 우선해서 적용**된다.
+
+#### @Profile 과 @ActiveProfiles
+- 스프링 3.1 은 환경에 따라 빈 설정 정보가 달라져야 하는 경우에 파일을 여러개로 쪼개고 조합하는 번거로운 방법 대신 간단히 설정정보를 구성할 수 있는 방법을 제공한다.
+- **실행 환경에 따라 빈 구성이 달라지는 내용을 프로파일로 정의해서 만들어두고, 실행 시점에 어떤 프로파일의 빈 설정을 사용할 지 지정**하는 것이다.
+- 프로파일은 클래스 레벨에 부여하고 프로파일 이름을 넣어주면 된다
+```java
+@Configuration
+@Profile("test")
+public class TestAppContext {
+```
+- 프로파일이 지정되어 있지 않은 빈 설정은 default 프로파일로 취급하여 항상 적용된다.
+- 프로파일 적용 시 모든 설정 클래스를 부담없이 메인 설정 클래스에서 @Import 해도 된다는 장점이 있다
+- @Profile 이 붙은 설정 클래스는 @Import 로 가져오든, @ContextConfiguration 에 직접 명시하든 상관없이 **현재 컨테이너의 활성 프로파일 목록에 자신의 프로파일 이름이 들어 있지 않으면 무시된다.**
+  - 활성 프로파일 : 스프링 컨테이너를 실행할 때 추가로 지정해주는 속성
+  - @ActiveProfiles 애노테이션을 사용하여 특정 프로파일을 지정해줄 수 있다
+
+#### 컨테이너의 빈 등록 정보 확인
+- 스프링 컨테이너에 등록된 빈 정보를 조회하는 방법
+- 스프링 컨테이너는 모두 BeanFactory라는 인터페이스를 구현하고 있으며, 대부분의 스프링 컨테이너가 구현 클래스 중 DefaultListableBeanFactory 클래스를 이용하여 빈을 등록하고 관리한다.
+```java
+@Autowired DefaultListableBeanFactory bf;
+
+@Test
+public void beans(){
+	for(String n : bf.getBeanDefinitionNames()){
+    	System.out.println("bf.getBean(n).getClass().getName()");
+    }
+}
+```
+
+#### 중첩 클래스를 이용한 프로파일 적용
+- 스태틱 중첩 클래스를 이용하면 하나의 설정 파일만 열어보면 손쉽게 설정을 확인할 수 있다.
+```java
+@Configuration 
+@EnableTransactionManagement
+@ComponentScan(basePackages="springbook.user")
+@Import({SqlServiceContext.class, AppContext.TestAppContext.class, AppContext.ProductionAppContext.class})
+public class AppContext {
+    ...
+    @Configuration
+    @Profile("production")
+    public static class ProductionAppContext {...}
+
+    @Configuration
+    @Profile("test")
+    public static class TestAppContext {...}
+}
+```
+
+### 7.6.5. 프로퍼티 소스
+```java
+public class AppContext {
+    @Bean
+    public DataSource dataSource() {
+        SimpleDriverDataSource ds = new SimpleDriverDataSource(); 
+        ds.setDriverClass(Driver.class);
+        ds.setUsername(ds.setPassword("book"); 
+        ...
+        return ds;
+    }
+}
+```
+
+#### @PropertySource
+- 스프링 컨테이너가 지정된 정보 소스로부터 프로퍼티 값 수집하고, 이를 빈 설정 작업 중에 사용할 수 있게 해준다.
+- 프로퍼티 소스 : 컨테이너가 프로퍼티 값을 가져오는 대상
+```java
+// database.properties  
+db.driverClass=com.mysql.jdbc.Driver
+db.username=spring
+db.password=book
+```
+- @PropertySource("/database.properties") 를 AppContext 위에 붙여준다.
+  - @PropertySource 로 등록한 리소스로부터 가져오는 프로퍼티 값은 컨테이너가 관리하는 Environment 타입의 환경 오브젝트에 저장되며, @Autowired 로 필드 주입받을 수 있으며, 주입받은 오브젝트의 getProperty() 메소드를 이용하여 프로퍼티 값을 가져올 수 있다
+
+#### PropertySourcesPlaceholderConfigurer
+- @Value 를 활용하여 이름 그대로 값을 주입받을 때 사용한다
+- 프로퍼티 소스로부터 가져온 값을 @Value 필드에 주입하는 기능을 사용하려면 PropertySourcesPlaceholderConfigurer 를 빈으로 정의해줘야 한다.
+```java
+@Bean
+public static PropertySourcesPlaceholderConfigurer placeholderConfigurer() {
+    return new PropertySourcesPlaceholderConfigurer();
+}
+```
+- @Value 를 이용하면 driverClass 처럼 문자열 그대로 사용하지 않고 **타입 변환이 필요한 프로퍼티를 스프링이 알아서 처리해준다는 장점이 있다**
+```java
+@PropertySource("/database.properties") 
+public class AppContext {
+    @Value("${db.driverClass}") Class<? extends Driver> driverClass; 
+    @Value("${db.url}") String url;
+    @Value("${db.username}") String username;
+}
+```
