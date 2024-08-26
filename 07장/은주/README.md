@@ -300,3 +300,7 @@ public class AppContext {
     @Value("${db.username}") String username;
 }
 ```
+
+### 7.6.6. 빈 설정의 재사용과 @Enable
+#### 빈 설정자
+- 하나의 빈이 꼭 한가지 타입일 필요는 없으며, 빈을 DI 받아서 사용하는 쪽은 빈이 특정 인터페이스를 구현하고 있는지에만 관심이 있다
