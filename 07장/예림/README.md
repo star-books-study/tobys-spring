@@ -581,3 +581,12 @@ public DataSource dataSource() {
 - `@Value`를 이용하여 `${프로퍼티 속성}`으로 주입 가능
 <img width="634" alt="스크린샷 2024-08-25 오후 10 56 54" src="https://github.com/user-attachments/assets/078f39ec-3ba0-4a6a-9605-6c521ca45397">
 
+
+### 7.6.6 빈 설정의 재사용과 @Enable
+- 이제는 SQL 서비스 관련 빈 등록을 @Import 한 줄만 추가해주면 한 번에 끝낼 수 있다.
+```java
+@Import(SqlServiceContext.class)
+```
+
+#### 빈 설정자
+- SqlServiecContext에서 SQL 매핑파일의 위치를 지정하는 작업을 분리하기 위해 다음과 같은 인터페이스를 정의할 수 있다.
