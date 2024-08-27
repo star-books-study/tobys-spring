@@ -590,3 +590,25 @@ public DataSource dataSource() {
 
 #### 빈 설정자
 - SqlServiecContext에서 SQL 매핑파일의 위치를 지정하는 작업을 분리하기 위해 다음과 같은 인터페이스를 정의할 수 있다.
+
+```java
+public interface SqlMapConfig {
+  Resource getSqlMapResource();
+}
+```
+- SQL 매핑 파일의 리소스를 돌려주도록 getSqlMapResource()를 구현한다.
+- 그리고 SqlServiceContext가 변하지 않는 SqlMapConfig 인터페이스에만 의존하게 만들고, SqlMapConfig 구현 클래스를 빈으로 정의해 런타임 시 주입되게 만든다.
+```java
+@Configuration
+public class SqlServiceContext {
+  @Autowired SqlMapConfig sqlMapConfig;
+
+  @Bean
+  public SqlService sqlService() {
+    ...
+    sqlService.setSqlmap(this.sqlMapConfig.getSqlMapResource());
+    ...
+  }
+```
+- UserDao를 비롯해 사용자 관리 예제에 종속적인 정보는 SqlServiceContext에 더 이상 남아있지 않게 됐다.
+- 
