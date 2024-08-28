@@ -611,4 +611,27 @@ public class SqlServiceContext {
   }
 ```
 - UserDao를 비롯해 사용자 관리 예제에 종속적인 정보는 SqlServiceContext에 더 이상 남아있지 않게 됐다.
-- 
+- 다음으로 SqlMapConfig를 구현한 UserSqlMapConfig 클래스를 빈으로 등록한다.
+```java
+public class AppContext {
+
+  ...
+  @Bean
+  public SqlMapConfig sqlMapConfig() {
+    return new UserSqlMapConfig();
+  }
+```
+- sqlMapConfig 빈은 @Autowired를 통해서 주입돼 사용될 것이다.
+- 이제 SqlServiceContext 코드는 SQL 매핑 파일의 위치 변경에 영향을 맏지 않는다.
+
+- 그런데 지금까지 별도의 모듈로 분리할 SqlServiceContext를 제외하고 나머지 빈 설정은 AppContext로 통합했다. SQL 매핑 파일 리소스 위치도 애플리케이션 빈 설정에 관련된 정보인데, 파일을 줄이고 좀 더 간결하게 만들 수는 없을까?
+  ➡️ AppContext가 SqlMapConfig을 직접 구현하게 하면 된다.
+- AppContext는 빈을 정의하고 DI 정보를 제공하는 설정용 클래스이면서 스스로도 빈으로 사용된다.
+  - AppContext에 달려있는 @Configuration은 @Component를 메타 애너테이션으로 가지고 있다.
+- SqlServiceContext는 @Autowired 필드에서 SqlMapConfig 타입의 빈을 주입받으려고 할 것이다. 
+  ➡ AppContext로 만들어진 빈 오브젝트는 @Autowired에 의해 SqlServiceContext에 주입되어 사용된다.
+
+<img width="676" alt="스크린샷 2024-08-28 오후 3 57 11" src="https://github.com/user-attachments/assets/96dda38c-f495-450d-92d4-5807929c189d">
+
+#### @Enable 애너테이션
+
