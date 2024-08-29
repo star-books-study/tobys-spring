@@ -634,4 +634,11 @@ public class AppContext {
 <img width="676" alt="스크린샷 2024-08-28 오후 3 57 11" src="https://github.com/user-attachments/assets/96dda38c-f495-450d-92d4-5807929c189d">
 
 #### @Enable 애너테이션
-
+- SlqServiceContext모듈화된 빈 설정을 가져올 때 사용하는 @Import도 다른 이름의 애너테이션으로 대체 가능하다.
+- @Import 애너테이션과 빈 설정 클래스 값들을 메타 애너테이션으로 넣어서 다음과 같이 애너테이션을 만들어주면된다.
+```java
+@Import(value=SqlServiceContext.class)
+public @interface EnableSqlService {
+}
+```
+- 이제 AppContext의 @Import를 새로 정의한 @EnableSqlService로 바꾸면 된다.
