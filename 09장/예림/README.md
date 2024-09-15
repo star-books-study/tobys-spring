@@ -132,3 +132,34 @@
 > 다음은 common, springmvc, hibernate라는 미리 준비된 의존 라이브러리 그룹을 지정해서 애플리케이션 설정을 만드는 예다.
     <img width="609" alt="스크린샷 2024-09-14 오후 9 21 55" src="https://github.com/user-attachments/assets/03d4cb17-3249-48a8-a67f-ee39e3d97544">
 
+- Maven을 사용했다면 다음과 같이 의존 정보를 정의해주면 된다.
+  <img width="538" alt="스크린샷 2024-09-15 오후 4 25 28" src="https://github.com/user-attachments/
+  assets/b8b4ef54-b57d-41e3-85cf-20594f83dd7c">
+  <img width="531" alt="스크린샷 2024-09-15 오후 4 25 35" src="https://github.com/user-attachments/assets/18103409-2d01-473f-9554-92374f7f6cca">
+
+#### 스프링 모듈의 두 가지 이름과 리포지토리
+- 인터넷 검색을 통해 발견할 수 있는 스프링 모듈 jar 파일의 이름을 살펴보면 두 가지 종류가 있다.
+  - ex) core 모듈이라면 다음과 같이 두 가지 이름의 파일 존재
+  <img width="518" alt="스크린샷 2024-09-15 오후 4 26 53" src="https://github.com/user-attachments/assets/99890234-79d2-4c2c-8dd1-aef133027240">
+- 이 두 파일은 동일한 파일이다. 단지 배포되는 기술에 따라서 **관례적으로 다른 이름 사용**할 뿐
+- **첫 번째 파일명 : Maven 명명 규칙을 사용**
+  - Maven은 그룹 아이디와 아티팩트 아이디, 그리고 버전 세 가지로 라이브러리를 정의하는데 그중에서 아티팩트 아이디와 버전을 조합해서 **파일 이름**으로 사용
+  - POM에는 다음과 같은 형식으로 의존 라이브러리 지정
+    ```xml
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-core</artifactId>
+      <version>3.0.7.RELEASE</version>
+    </dependency>
+    ```
+- **두 번째 파일명 : OSGi의 모듈 명명 규칙을 사용**
+  - 스프링의 모든 모듈은 OSGi 호환 모듈로 만들어져 있다.
+  - OSGi 플랫폼에서 사용되지 않아도 OSGi 스타일의 모듈 이름 사용 권장
+  - OSGi 호환 이름을 갖는 스프링 모듈을 사용할 경우 Maven 표준 리포지토리 대신 스프링소스가 제공하는 엔터프라이즈 번들 리포지토리를 사용해야 한다.
+  - 이 때는 다음과 같은 형식으로 스프링소스 리포지토리 위치 지정
+    <img width="558" alt="스크린샷 2024-09-15 오후 4 32 41" src="https://github.com/user-attachments/assets/505406a7-076d-4ac1-95a4-cf18047c1232">
+
+  - 리포지토리를 지정했다면 스프링의 표준 모듈 이름을 따라서 다음과 같이 의존 라이브러리 선언 가능
+    <img width="534" alt="스크린샷 2024-09-15 오후 4 33 04" src="https://github.com/user-attachments/assets/a7778a80-de37-4d11-97a2-9537dc7a83f9">
+
+## 9.3 애플리케이션 아키텍처
