@@ -184,3 +184,4 @@ public List<User> findByUser(String name) throws DataAccessException;
 
 #### 도메인 오브젝트를 사용하는 코드
 - 데이터 중심 방식에서라면 재사용 가능한 메소드를 만들어 사용하기 쉽지 않다
+- 도메인 오브젝트를 사용하는 코드는 간단히 테스트 값을 담은 도메인 오브젝트를 생성해서 쉽게 검증 가능하다
