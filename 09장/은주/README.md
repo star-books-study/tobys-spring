@@ -188,3 +188,4 @@ public List<User> findByUser(String name) throws DataAccessException;
 
 ### 도메인 오브젝트 사용의 문제점
 - 최적화된 SQL을 매번 만들어 사용하는 경우에 비해 성능 면에서 손해를 감수해야 할 수도 있다
+- `지연 로딩` : 최소한의 오브젝트 정보만 읽어두고 관계하고 있는 오브젝트가 필요한 경우에만 다이내믹하게 DB에서 읽어올 수 있다
