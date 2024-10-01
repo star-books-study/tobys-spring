@@ -253,4 +253,11 @@
 - 오브젝트를 만들고 오브젝트 구조 안에 정보를 담아서 각 계층 사이에 전달하게 하는것이 오브젝트 중심 아키텍처
 
 #### 데이터와 오브젝트
-- 1 : N 관계로 Category와 product가 있을 때, 이 두 개의 정보를 가져오는 방법은 JOIN을 통해 2차원 구조의 정보를 가져와야 함
+- 1 : N 관계로 Category와 product가 있을 때, 이 두 개의 정보를 가져오는 방법은 JOIN을 통해 2차원 구조의 정보를 가져와야 한다.
+```sql
+Select c.categoryid , c.description, p.productid, p.name, p.price, 
+FROM product p 
+    JOIN category c 
+    ON p.categoryid= c.categoryid
+```
+- SQL을 통해 가져온 정보를 맵에 담아야 하지만, 일일이 필드 이름을 기억해야 하기 때문에 불편하다.
