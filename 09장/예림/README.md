@@ -261,3 +261,15 @@ FROM product p
     ON p.categoryid= c.categoryid
 ```
 - SQL을 통해 가져온 정보를 맵에 담아야 하지만, 일일이 필드 이름을 기억해야 하기 때문에 불편하다.
+```java
+while(rs.next()){
+  Map<String,Object> resMap = new HashMap<String, Object>();
+  resMap.put(“categoryid”,rs.getString(1));
+  resMap.put(“description“, rs.getString(2));
+  …
+  list.add(resMap);
+}
+```
+- 서비스 계층에 전달되는 `List<Map<String, Object>>` 타입 이지만, 타입만 봐서는 안에 어떤 내용이 담겨져 있는지 확인할 수 없음
+- 오브젝트 중심
+  - 도메인 오브젝트는 데이터 중심 처럼 일일이 맵에 저장하지 않고, 오브젝트의 레퍼런스 변수를 통해 값을 가져옴
