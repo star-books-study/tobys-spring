@@ -273,3 +273,20 @@ while(rs.next()){
 - 서비스 계층에 전달되는 `List<Map<String, Object>>` 타입 이지만, 타입만 봐서는 안에 어떤 내용이 담겨져 있는지 확인할 수 없음
 - 오브젝트 중심
   - 도메인 오브젝트는 데이터 중심 처럼 일일이 맵에 저장하지 않고, 오브젝트의 레퍼런스 변수를 통해 값을 가져옴
+```java
+public class Category{
+  int categoryid;
+  String description;
+  Set<Product> products; //1:N이기 때문에 컬렉션을 이용해 저장
+  …
+}
+
+
+public class Product{
+  int productid;
+  Stringname;
+  int price;
+  Category category; //레퍼런스 변수로 값을 가져옴
+  …
+}
+```
