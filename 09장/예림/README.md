@@ -274,11 +274,14 @@ while(rs.next()){
 - 오브젝트 중심
   - 도메인 오브젝트는 데이터 중심 처럼 일일이 맵에 저장하지 않고, 오브젝트의 레퍼런스 변수를 통해 값을 가져옴
 ```java
+// 9-9. 도메인 오브젝트
 public class Category{
   int categoryid;
   String description;
-  Set<Product> products; //1:N이기 때문에 컬렉션을 이용해 저장
-  …
+  Set<Product> products; // 0~N개의 Product를 참조하고 있는 컬렉션을 가질 수 있다
+
+  // 접근자, 수정자
+  ...
 }
 
 
@@ -286,7 +289,10 @@ public class Product{
   int productid;
   Stringname;
   int price;
-  Category category; //레퍼런스 변수로 값을 가져옴
-  …
+  Category category; // 1개의 Catetory를 가리키는 레퍼런스를 직접 갖고 있다
+
+  // 접근자, 수정자
+  ...
 }
 ```
+- 
