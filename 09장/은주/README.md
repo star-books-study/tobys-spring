@@ -200,3 +200,4 @@ public List<User> findByUser(String name) throws DataAccessException;
 
 ### 풍성한 도메인 오브젝트 방식
 - 빈약한 오브젝트 단점을 극복하고 도메인 오브젝트의 객체지향적인 특징을 잘 사용할 수 있게 개선한 것이다
+- 도메인 모델의 정보를 정적인 구조뿐 아니라 동적인 동작 방식에도 적극 활용할 수 있다
