@@ -59,8 +59,14 @@
   - JdbcTemplate 등의 JDBC 지원 오브젝트 외에도 스프링이 직접 제공하는 DataSource 구현 클래스가 제공됨
 
 #### ORM 모듈
+- 하이버네이트, JPA, JDO, iBatis 와 같은 ORM 에 대한 스프링의 지원 기능을 갖고 있는 모듈
+
 #### Web 모듈
+- 스프링 웹 기술의 공통 기능을 정의한 모듈
+
 #### Web.Servlet 모듈
+- 스프링 MVC 기능을 제공하는 모듈
+
 #### Web.Portlet 모듈
 #### Web.Struts 모듈
 #### JMS 모듈
