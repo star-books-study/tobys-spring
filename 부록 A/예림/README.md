@@ -31,3 +31,4 @@
 ## A.1 스프링 모듈의 의존관계
 <img width="564" alt="스크린샷 2024-11-06 오전 10 10 50" src="https://github.com/user-attachments/assets/2475d650-ae69-44e0-8797-543390203430">
 
+## A.1.1 스프링 모듈 이름
