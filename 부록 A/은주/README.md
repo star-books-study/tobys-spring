@@ -67,10 +67,12 @@
 #### Web.Servlet 모듈
 - 스프링 MVC 기능을 제공하는 모듈
 
-#### Web.Portlet 모듈
-#### Web.Struts 모듈
-#### JMS 모듈
 #### Aspects 모듈
+- 스프링이 제공하는 AspectJ AOP 기능을 사용할 때 필요한 모듈
+
 #### Instrument 모듈
+- 스프링의 로드타임 위버 (LTW) 기능을 적용할 때 필요한 모듈
+- JVM 의 -javaagent 옵션을 사용해 자바에이전트로도 사용됨
+
 #### Instrument.Tomcat 모듈
-#### Test 모듈
+- 애플리케이션이 아니라 톰캣 서버의 클래스 로더로 사용하는 모듈
