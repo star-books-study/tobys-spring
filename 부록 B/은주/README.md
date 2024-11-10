@@ -45,3 +45,16 @@
   - AspectJ 스타일의 스프링 AOP 사용할 경우 필요함
 
 #### Context 모듈 
+- Backport 3.0.0
+  - JSR-166 Backport 를 이용한 스케줄링 기능 (Executor, TaskExecutor 등) 을 사용할 때 필요
+- Java Persistence API 1.0.0
+  - JPA 지원을 위한 클래스 로더에서 필요로 함
+
+#### Transaction 모듈
+- AOP Alliacne 1.0.0
+  - Transaction 모듈의 필수 라이브러리
+  - JPA 의 예외자동 변환용 AOP 와 트랜잭션 AOP 에 필요
+
+#### JDBC 모듈
+- H2 1.0.71
+  - 내장형 DB 인 H2를 사용할 경우 필요
