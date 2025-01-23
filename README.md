@@ -1,5 +1,5 @@
 # 토비의 스프링 3.1 Vol. 1 스프링의 이해와 원리
-<img src="https://image.yes24.com/goods/7516721/XL" width="300">
+<img src="https://github.com/user-attachments/assets/42307c9e-309e-4d7c-898e-6365c68d699e" width="300">
 
 ## 📚 스터디 규칙
 
